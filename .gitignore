@@ -1,0 +1,10 @@
+data/
+node_modules/
+runtime/
+vendor/
+release-assets/
+releases/
+BLIVECHAT-TRIAL.md
+try-blivechat.cmd
+.env
+*.log
