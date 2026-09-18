@@ -19,3 +19,9 @@ The unmodified standalone server executable is included under vendor/. Its licen
 Executable SHA-256: 759d6a64497391594e10a27692f2f37221bd96103d84c427a789dbcff0227012
 
 This is an independent queue tool and not an official LAPLACE or OBS product.
+
+## Windows tray launcher
+
+The EXE edition additionally bundles Python 3.13 and the pystray, Pillow and six packages, built with PyInstaller. Their license documents (including Pillow's bundled-library notices and the PyInstaller bootloader exception) are included under licenses/. The Python edition installs the pinned dependencies listed in requirements.txt.
+
+The application icon in assets/ is the image supplied by the project owner, converted to Windows ICO sizes without redrawing. It is not covered by the application's MIT source-code license; underlying artwork rights remain with their respective owners.

@@ -8,3 +8,6 @@ BLIVECHAT-TRIAL.md
 try-blivechat.cmd
 .env
 *.log
+.venv/
+__pycache__/
+*.pyc

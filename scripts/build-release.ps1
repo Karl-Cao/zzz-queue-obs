@@ -1,3 +1,4 @@
+param([string]$Python='python')
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $releaseRoot = Join-Path $projectRoot 'releases'
@@ -10,21 +11,28 @@ foreach ($item in @(@($nodeArchive, '1177b4137ba5adaa56354ae40f1080c7450e8ae09ce
     if ((Get-FileHash -LiteralPath $item[0] -Algorithm SHA256).Hash.ToLowerInvariant() -ne $item[1]) { throw ('Dependency checksum mismatch: ' + $item[0]) }
 }
 Add-Type -AssemblyName System.IO.Compression.FileSystem
+$trayBuild = Join-Path $projectRoot 'data/tray-build'
+& $Python -m PyInstaller --noconfirm --clean --windowed --onedir --name 'ZZZ Queue' --icon (Join-Path $projectRoot 'assets/app.ico') --distpath (Join-Path $trayBuild 'dist') --workpath (Join-Path $trayBuild 'work') --specpath $trayBuild (Join-Path $projectRoot 'queue_tray.py')
+if ($LASTEXITCODE -ne 0) { throw 'Tray EXE build failed' }
+& $Python (Join-Path $PSScriptRoot 'collect-python-licenses.py') (Join-Path $trayBuild 'licenses')
+if ($LASTEXITCODE -ne 0) { throw 'License collection failed' }
 $nodeZip = [IO.Compression.ZipFile]::OpenRead($nodeArchive)
 $sourceZip = [IO.Compression.ZipFile]::OpenRead($bridgeSource)
 try {
-    foreach ($edition in @('bridge')) {
-        $name = 'obs-queue-' + $version + '-windows-x64'
+    foreach ($edition in @('exe','python')) {
+        $name = 'obs-queue-' + $version + '-windows-x64-' + $edition
         $destination = Join-Path $releaseRoot $name
         if (Test-Path -LiteralPath $destination) { throw ('Build folder already exists; use a new version or a fresh releases directory: ' + $destination) }
         New-Item -ItemType Directory -Force $destination,(Join-Path $destination 'runtime'),(Join-Path $destination 'licenses') | Out-Null
-        foreach ($folder in @('server','public','scripts','tests','desktop')) { Copy-Item -LiteralPath (Join-Path $projectRoot $folder) -Destination $destination -Recurse }
-        foreach ($file in @('package.json','README.md','README.en.md','LICENSE','THIRD-PARTY-NOTICES.md','start.cmd','desktop.cmd','desktop-en.cmd','stop.cmd','enable-lan.cmd','enable-lan.ps1')) { Copy-Item -LiteralPath (Join-Path $projectRoot $file) -Destination $destination }
+        foreach ($folder in @('server','public','scripts','tests','desktop','assets')) { Copy-Item -LiteralPath (Join-Path $projectRoot $folder) -Destination $destination -Recurse }
+        foreach ($file in @('package.json','README.md','README.en.md','LICENSE','THIRD-PARTY-NOTICES.md','start.cmd','start-python.cmd','queue_tray.py','requirements.txt','requirements-build.txt','desktop.cmd','desktop-en.cmd','stop.cmd','enable-lan.cmd','enable-lan.ps1')) { Copy-Item -LiteralPath (Join-Path $projectRoot $file) -Destination $destination }
+        if ($edition -eq 'exe') { Copy-Item -Path (Join-Path $trayBuild 'dist/ZZZ Queue/*') -Destination $destination -Recurse }
+        Copy-Item -Path (Join-Path $trayBuild 'licenses/*') -Destination (Join-Path $destination 'licenses') -Recurse
         $editionName = 'Event Bridge'
-        [IO.File]::WriteAllText((Join-Path $destination 'edition.json'),(@{id=$edition;name=$editionName} | ConvertTo-Json),[Text.UTF8Encoding]::new($false))
+        [IO.File]::WriteAllText((Join-Path $destination 'edition.json'),(@{id='bridge';name=$editionName;launcher=$edition} | ConvertTo-Json),[Text.UTF8Encoding]::new($false))
         [IO.Compression.ZipFileExtensions]::ExtractToFile($nodeZip.GetEntry('node-v22.23.2-win-x64/node.exe'),(Join-Path $destination 'runtime\node.exe'))
         [IO.Compression.ZipFileExtensions]::ExtractToFile($nodeZip.GetEntry('node-v22.23.2-win-x64/LICENSE'),(Join-Path $destination 'licenses\Node.js-LICENSE.txt'))
-        if ($edition -eq 'bridge') {
+        if ($edition -in @('exe','python')) {
             New-Item -ItemType Directory (Join-Path $destination 'vendor'),(Join-Path $destination 'third-party-source') | Out-Null
             Copy-Item -LiteralPath $bridge -Destination (Join-Path $destination 'vendor')
             Copy-Item -LiteralPath $bridgeSource -Destination (Join-Path $destination 'third-party-source')

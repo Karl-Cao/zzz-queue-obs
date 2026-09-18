@@ -6,9 +6,14 @@
 
 ## 下载安装
 
-到 [Releases](https://github.com/Karl-Cao/zzz-queue-obs/releases/latest) 下载 `obs-queue-*-windows-x64.zip`，解压到可写文件夹。不要下载 GitHub 自动生成的 Source code ZIP 作为安装包。
+到 [Releases](https://github.com/Karl-Cao/zzz-queue-obs/releases/latest) 选择一个版本，完整解压到可写文件夹。不要下载 GitHub 自动生成的 Source code ZIP 作为安装包。
 
-- `start.cmd`：启动服务与控制台，右上角切换中文 / English。
+- **EXE 版（推荐）**：下载 `obs-queue-*-windows-x64-exe.zip`，运行 `ZZZ Queue.exe` 或 `start.cmd`。无需安装 Python。请保留整个解压目录，不能只复制 EXE。
+- **Python 版**：下载 `obs-queue-*-windows-x64-python.zip`，安装 Python 3.10+ 后运行 `start-python.cmd`。首次联网安装托盘依赖到本目录 `.venv/`，随后使用 `queue_tray.py` 启动。同样包含 Node.js 和 Event Bridge；这是 Python 托盘启动器版，排队服务仍使用 Node.js。
+
+两个版本启动后都独立常驻右下角托盘，无需开启悬浮窗。点击图标打开管理控制台；右键可打开直播面板、OBS 挂件、桌面悬浮窗，重启服务，切换中英文或退出并停止服务。退出会关闭本版本桌面窗，并停止此服务自己启动的桥接；不会关闭外部共享桥接。图标可能被 Windows 收入托盘的展开菜单。
+
+- `start.cmd`：启动主托盘与控制台，右上角切换中文 / English。
 - `desktop.cmd`：中文桌面穿透窗；`desktop-en.cmd`：英文桌面穿透窗。
 - `stop.cmd`：停止此安装目录的服务。
 - `enable-lan.cmd`：允许同一局域网的手机 / 平板访问；需要 Windows 管理员授权。
@@ -57,6 +62,8 @@ Node.js 22+，零生产 npm 依赖：
 
 ```powershell
 npm test
+python tests/tray_test.py
+python -m pip install -r requirements-build.txt
 powershell -ExecutionPolicy Bypass -File scripts/fetch-dependencies.ps1
 powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1
 ```

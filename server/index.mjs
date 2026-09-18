@@ -54,7 +54,7 @@ const server = createServer(async (req, res) => {
     const url = new URL(req.url, origin), local = localAdmin(req), authorized = access.authorized(req);
     res.setHeader('Cache-Control', 'no-store'); res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('Referrer-Policy', 'no-referrer'); res.setHeader('X-Frame-Options', 'SAMEORIGIN');
     if (req.method === 'GET' && url.pathname === '/api/access') { json(res, 200, { authorized, local }); return; }
-    if (req.method === 'GET' && url.pathname === '/api/health') { json(res, 200, { app: 'obs-viewer-queue', version: '1.5.0', instance, port }); return; }
+    if (req.method === 'GET' && url.pathname === '/api/health') { json(res, 200, { app: 'obs-viewer-queue', version: '1.6.0', instance, port }); return; }
     if (req.method === 'POST') {
       if (req.headers.origin !== `http://${req.headers.host}` || !req.headers['content-type']?.startsWith('application/json')) { json(res, 403, { error: '请从控制台页面操作' }); return; }
       if (url.pathname === '/api/login') { const a = await body(req); res.setHeader('Set-Cookie', access.login(req.socket.remoteAddress, a.code)); json(res, 200, { ok: true }); return; }

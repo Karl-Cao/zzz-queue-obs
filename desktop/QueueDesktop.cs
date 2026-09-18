@@ -18,7 +18,7 @@ public sealed class QueueDesktop : Form {
  readonly JavaScriptSerializer json=new JavaScriptSerializer();
  readonly Timer timer=new Timer(); readonly NotifyIcon tray=new NotifyIcon();
  readonly Label heading=new Label(), status=new Label(), currentView=new Label();
- static bool English;
+ static bool English; static string Instance, IconPath; readonly System.Threading.EventWaitHandle stopEvent = new System.Threading.EventWaitHandle(false, System.Threading.EventResetMode.ManualReset, "Local\\ZZZQueueDesktopStop-" + Instance);
  static string T(string zh,string en){return English?en:zh;} readonly FlowLayoutPanel rows=new FlowLayoutPanel(), actions=new FlowLayoutPanel();
  readonly Color acid=Color.FromArgb(233,250,55), dark=Color.FromArgb(25,27,22);
  readonly TextBox chatView=new TextBox();
@@ -38,10 +38,10 @@ public sealed class QueueDesktop : Form {
   AddButton(actions,T("抽奖","Lottery"),()=>Post(new{type="start"}));AddButton(actions,T("开奖","Draw"),()=>Post(new{type="finish"}));
   AddButton(actions,T("语音测试","Voice test"),()=>Post(new{},"/api/speech/test"));AddButton(actions,T("控制台","Dashboard"),()=>System.Diagnostics.Process.Start(baseUrl+"/live"));
   var menu=new ContextMenuStrip();menu.Items.Add(T("切换操作 / 穿透 (Ctrl+Alt+Q)","Toggle controls / click-through (Ctrl+Alt+Q)"),null,(s,e)=>Toggle());menu.Items.Add(T("显示 / 隐藏 (Ctrl+Alt+H)","Show / hide (Ctrl+Alt+H)"),null,(s,e)=>{Visible=!Visible;});menu.Items.Add(T("退出悬浮窗","Exit overlay"),null,(s,e)=>Close());
-  tray.Icon=SystemIcons.Application;tray.Text=T("ZZZ Queue · Ctrl+Alt+Q 操作","ZZZ Queue · Ctrl+Alt+Q controls");tray.ContextMenuStrip=menu;tray.Visible=true;tray.DoubleClick+=(s,e)=>Toggle();
-  timer.Interval=1000;timer.Tick+=(s,e)=>Poll();
+  if(System.IO.File.Exists(IconPath))Icon=new Icon(IconPath); tray.Icon=Icon;tray.Text=T("ZZZ Queue · Ctrl+Alt+Q 操作","ZZZ Queue · Ctrl+Alt+Q controls");tray.ContextMenuStrip=menu;tray.Visible=true;tray.DoubleClick+=(s,e)=>Toggle();
+  stopEvent.Reset(); timer.Interval=1000;timer.Tick+=(s,e)=>{if(stopEvent.WaitOne(0))Close();else Poll();};
   Shown+=(s,e)=>{bool q=RegisterHotKey(Handle,1,0x4003,(uint)Keys.Q);bool h=RegisterHotKey(Handle,2,0x4003,(uint)Keys.H);SetMode();if(!q||!h){tray.ShowBalloonTip(6000,T("快捷键已占用","Shortcut unavailable"),T("可右键系统托盘图标切换操作模式。","Right-click the tray icon to toggle controls."),ToolTipIcon.Warning);}timer.Start();Poll();};
-  FormClosed+=(s,e)=>{timer.Stop();timer.Dispose();UnregisterHotKey(Handle,1);UnregisterHotKey(Handle,2);tray.Dispose();http.Dispose();};
+  FormClosed+=(s,e)=>{timer.Stop();timer.Dispose();UnregisterHotKey(Handle,1);UnregisterHotKey(Handle,2);tray.Dispose();http.Dispose();stopEvent.Dispose();};
  }
  protected override bool ShowWithoutActivation{get{return true;}}
  protected override CreateParams CreateParams{get{var p=base.CreateParams;p.ExStyle|=0x80000|0x20|0x08000000|0x80;return p;}}
@@ -67,6 +67,6 @@ public sealed class QueueDesktop : Form {
     if(queue.Count==0)rows.Controls.Add(new Label{Text=T("STANDBY / 等待观众加入","STANDBY / Waiting for viewers"),Width=350,Height=60,ForeColor=acid});rows.ResumeLayout();}
   }catch{if(!IsDisposed){online=false;status.ForeColor=Color.Salmon;status.Text=T("连接中断 · 显示上次队列 · 自动重连","Disconnected · Showing last state · Reconnecting");}}finally{polling=false;}
  }
- [STAThread] public static void Main(string[] args){English=args.Length>1&&args[1]=="en";Run(Int32.Parse(args[0]));}
+ [STAThread] public static void Main(string[] args){English=args.Length>1&&args[1]=="en";Instance=args.Length>2?args[2]:"default";IconPath=args.Length>3?args[3]:"";Run(Int32.Parse(args[0]));}
  [STAThread] public static void Run(int port){Application.EnableVisualStyles();Application.SetCompatibleTextRenderingDefault(false);Application.Run(new QueueDesktop(port));}
 }

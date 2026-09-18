@@ -6,9 +6,14 @@ A Windows portable Bilibili queue, lottery, manual voice calling and click-throu
 
 ## Install
 
-Download `obs-queue-*-windows-x64.zip` from [Releases](https://github.com/Karl-Cao/zzz-queue-obs/releases/latest), then extract it to a writable folder. GitHub's automatic Source code archives are not installers.
+Choose a package from [Releases](https://github.com/Karl-Cao/zzz-queue-obs/releases/latest) and extract the whole folder. GitHub's automatic Source code archives are not installers.
 
-- `start.cmd`: dashboard; select English at the top right.
+- **EXE (recommended)**: `obs-queue-*-windows-x64-exe.zip`. Run `ZZZ Queue.exe` or `start.cmd`. No Python installation required. Keep all extracted files alongside the EXE.
+- **Python**: `obs-queue-*-windows-x64-python.zip`. Install Python 3.10+ and run `start-python.cmd`. The first run downloads tray dependencies into a local `.venv/`. The editable launcher is `queue_tray.py`; the queue server still uses bundled Node.js. Event Bridge is bundled too.
+
+Both versions have a main tray icon independent of the desktop overlay. Click it to open the dashboard. Its menu opens live controls, OBS and desktop overlays, restarts services, switches language, or exits and stops services. Exit also closes this installation's desktop overlay and the bridge started by its server; externally managed/shared bridges remain running. Windows may place the icon in its tray overflow menu.
+
+- `start.cmd`: main tray and dashboard; select English at the top right.
 - `desktop-en.cmd`: English desktop overlay. `desktop.cmd`: Chinese desktop overlay.
 - `stop.cmd`: stop this installation's service.
 - `enable-lan.cmd`: allow phone/tablet access on the local network; requires Windows administrator approval.
@@ -51,6 +56,8 @@ Development: Node.js 22+, no production npm dependencies.
 
 ```powershell
 npm test
+python tests/tray_test.py
+python -m pip install -r requirements-build.txt
 powershell -ExecutionPolicy Bypass -File scripts/fetch-dependencies.ps1
 powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1
 ```
