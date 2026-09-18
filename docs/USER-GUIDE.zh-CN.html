@@ -27,8 +27,8 @@ button{font:inherit;font-size:14px;cursor:pointer;border:0;border-radius:7px;pad
 <li><a href="#1">1. 先认识这几个窗口</a></li>
 <li><a href="#2">2. 下载、解压和第一次启动</a></li>
 <li><a href="#3">3. 在排队插件里填写基本设置</a></li>
-<li><a href="#4-laplace-chat">4. 设置 LAPLACE Chat，让真实弹幕进入插件</a></li>
-<li><a href="#5-laplace-obs">5. 只有一个显示器：把 LAPLACE 放在 OBS 内运行</a></li>
+<li><a href="#4-laplace-chat">4. 方案一：有副屏，在副屏运行 LAPLACE Chat</a></li>
+<li><a href="#5-obs-laplace-chat">5. 方案二：没有副屏，在 OBS 内运行 LAPLACE Chat</a></li>
 <li><a href="#6">6. 把排队和弹幕放进直播画面</a></li>
 <li><a href="#7">7. 排队规则与日常叫号</a></li>
 <li><a href="#8">8. 抽奖：口令或礼物报名</a></li>
@@ -47,7 +47,7 @@ button{font:inherit;font-size:14px;cursor:pointer;border:0;border-radius:7px;pad
 <p class="hint">查找问题：按 Ctrl+F，输入“手机”“声音”或“连接失败”。</p></nav>
 <main><div class="actions"><button onclick="window.print()">打印 / 保存为 PDF</button><span class="hint">本文件可独立保存或发送给其他主播；外部链接需要联网。</span></div><h1 id="zzz-queue-obs">ZZZ Queue OBS 新手使用手册</h1>
 <p>适用版本：v1.6.1 · 更新日期：2026 年 9 月 18 日</p>
-<p>这份手册面向不懂编程的主播。按顺序完成第 1–6 节，就可以让观众发弹幕排队，并把队列放进直播画面。手机、抽奖、桌面悬浮窗等功能可以之后再设置。</p>
+<p>这份手册面向不懂编程的主播。先完成第 1–3 节，再根据设备选择一种接收方案：有副屏看第 4 节，没有副屏看第 5 节；接通后继续第 6 节，把队列放进直播画面。手机、抽奖、桌面悬浮窗等功能可以之后再设置。</p>
 <p><strong>最重要的一句话：观众加入的是“接下来”；主播点击“完成当前叫号并继续”，才会把第一位观众变成“当前”，并进行语音叫号。</strong></p>
 <h2 id="1">1. 先认识这几个窗口</h2>
 <table>
@@ -204,28 +204,40 @@ button{font:inherit;font-size:14px;cursor:pointer;border:0;border-radius:7px;pad
 </table>
 <p><code>3667</code> 是默认的网页端口；被占用时程序会换一个数字。后续请使用实际控制台地址。<code>9696</code> 是桥接端口，与网页端口不是同一个东西。<strong>不要因为网页是 3667，就把桥接地址也改成 3667。</strong></p>
 <p>旧配置可能使用 <code>9698</code>，本插件也支持自动启动它；已有连接正常就不必更改。<code>9697</code> 不是本插件默认自动启动的桥接端口。</p>
-<h2 id="4-laplace-chat">4. 设置 LAPLACE Chat，让真实弹幕进入插件</h2>
+<h3 id="32">3.2 根据显示器选择一种接收方案</h3>
+<p><strong>第 4 节和第 5 节是两种替代方案，只选一条路线，不需要两套都做。</strong></p>
+<table>
+<thead>
+<tr>
+<th>你的设备</th>
+<th>接下来怎么做</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>有副屏，能在副屏一直显示 LAPLACE</td>
+<td>按第 4 节设置，完成后跳过第 5 节，继续第 6 节</td>
+</tr>
+<tr>
+<td>没有副屏，只有一个显示器或笔记本屏幕</td>
+<td>跳过第 4 节，直接按第 5 节在 OBS 内设置，完成后继续第 6 节</td>
+</tr>
+</tbody>
+</table>
+<p>两种方案都需要运行排队主程序。手机是可选的遥控器，不负责接收弹幕。</p>
+<h2 id="4-laplace-chat">4. 方案一：有副屏，在副屏运行 LAPLACE Chat</h2>
+<p><strong>适合有副屏的用户。</strong> 将 LAPLACE 控制台放在副屏，主屏用来玩游戏。本节完成后直接前往第 6 节，不需要再配置第 5 节的 OBS 接收端。</p>
 <h3 id="41-laplace">4.1 先让 LAPLACE 本身收到弹幕</h3>
 <ol>
 <li>在直播电脑打开 <a href="https://chat.laplace.live/">LAPLACE Chat</a>。</li>
 <li>在首页选择连接方式，并填入自己的直播间号或直播间链接。</li>
-<li>对于排队这种要区分“是谁”的功能，优先使用能提供可靠观众身份的连接方式。官方控制台说明推荐房间号配合 Login Sync；幻星连接不能提供真实 UID，不能只凭“能看到昵称”就认定排队身份一定正确。<a href="https://laplace.live/chat/dashboard">LAPLACE 控制台说明</a></li>
+<li>对于排队这种要区分“是谁”的功能，优先使用能提供可靠观众身份的连接方式。幻星连接不能提供真实 UID，不能只凭“能看到昵称”就认定排队身份一定正确。<a href="https://laplace.live/chat/dashboard">LAPLACE 控制台说明</a></li>
 <li>在首页底部点击 <strong>打开控制台</strong>。</li>
 <li>用手机进入 B 站直播间，发送一条容易辨认的普通弹幕，例如 <code>连接测试01</code>。</li>
 <li>先确认这条弹幕出现在 <strong>LAPLACE 控制台</strong>，再进行下一步。</li>
 </ol>
 <p>如果 LAPLACE 本身没有收到，先处理它的房间号、登录或网络问题。此时修改排队插件的规则不会解决问题。</p>
-<h3 id="42-login-sync">4.2 需要 Login Sync 时怎样设置</h3>
-<p>如果你已经能得到完整、可靠的用户身份，不必重复安装。需要设置时，先阅读 <a href="https://laplace.live/login-sync">Login Sync 官方说明及隐私说明</a>：它会同步 B 站登录状态，应由你决定是否使用，也可按官方建议使用单独账号。</p>
-<ol>
-<li>在安装扩展的浏览器里登录 B 站。</li>
-<li>从官方说明页进入对应浏览器的扩展安装入口。</li>
-<li>打开 <strong>LAPLACE Login Sync</strong> 扩展，点击 <strong>Copy Key / 复制密钥</strong>，再点击 <strong>Save and Sync / 保存并同步</strong>。</li>
-<li>回到 LAPLACE Chat 首页，进入 <strong>Advanced / 高级</strong>，把密钥填入 <strong>Sync Key / 同步密钥</strong>。</li>
-<li>重新打开控制台，发送新弹幕检查身份和消息。</li>
-</ol>
-<p><strong>同步密钥只填在 LAPLACE 指定的位置，不要填成排队插件的桥接令牌。</strong> 它也不是手机的八位配对码。含密钥的链接和截图不要发到公开群里。</p>
-<h3 id="43-event-bridge">4.3 开启 Event Bridge</h3>
+<h3 id="42-event-bridge">4.2 开启 Event Bridge</h3>
 <p>确认排队主程序已经启动，再在 <strong>LAPLACE 控制台</strong> 操作：</p>
 <ol>
 <li>点击右上角的 <strong>设置 / 齿轮</strong>。</li>
@@ -237,7 +249,7 @@ button{font:inherit;font-size:14px;cursor:pointer;border:0;border-radius:7px;pad
 <li>回到排队插件，查看 <strong>LAPLACE Event Bridge</strong> 卡片。如有需要，点 <strong>重新连接 / 启动桥接</strong>。</li>
 </ol>
 <p>默认桥接由本工具启动。普通用户不用另下一个桥接程序，也不需要安装 Event Fetcher。官方桥接的默认端口和可选认证机制见 <a href="https://laplace.live/chat/event-bridge">Event Bridge 说明</a>。</p>
-<h3 id="44">4.4 完整验收：一定要再发一条真实消息</h3>
+<h3 id="43">4.3 完整验收：一定要再发一条真实消息</h3>
 <ol>
 <li>在手机的 B 站直播间发送 <code>连接测试02</code>。</li>
 <li>确认 LAPLACE 收到了。</li>
@@ -247,8 +259,11 @@ button{font:inherit;font-size:14px;cursor:pointer;border:0;border-radius:7px;pad
 </ol>
 <p>完成这些才算接通。<strong>两边显示“已连接”但没有新消息，只能说明连接存在，不能说明弹幕正在传过来。</strong></p>
 <p>如果免费排队关闭，普通 <code>排队</code> 弹幕不入队是正常规则，不代表桥接坏了。</p>
-<h2 id="5-laplace-obs">5. 只有一个显示器：把 LAPLACE 放在 OBS 内运行</h2>
-<p>如果你有副屏，可以在副屏保留 LAPLACE 控制台。只有一台笔记本和一部手机时，可以采用下面的方案：OBS 保持 LAPLACE 来源运行；主播用桌面悬浮窗或手机控制排队。</p>
+<h3 id="44">4.4 直播时保持副屏浏览器活跃</h3>
+<p>把 <code>chat.laplace.live</code> 加入 Chrome / Edge 的“始终保持活跃”列表，并让 LAPLACE 保持为独立窗口中的当前标签页。官方说明指出：休眠例外不能完全消除后台计时器限制，切标签、最小化或被完全遮住仍可能影响接收。直播时让这个窗口持续显示在副屏，不要切走它的标签页。<a href="https://laplace.live/chat/dashboard">浏览器后台限制说明</a></p>
+<p>配置完成后发一条真实弹幕确认插件收到，再直接前往第 6 节。</p>
+<h2 id="5-obs-laplace-chat">5. 方案二：没有副屏，在 OBS 内运行 LAPLACE Chat</h2>
+<p><strong>适合只有一个显示器或笔记本屏幕的用户。</strong> 直接按本节操作，不需要先做第 4 节。OBS 保持 LAPLACE 来源运行；主播用桌面悬浮窗或手机控制排队。</p>
 <h3 id="51">5.1 建立一个专用的接收来源</h3>
 <ol>
 <li>打开 OBS，选择平时直播游戏用的场景。</li>
@@ -259,9 +274,13 @@ button{font:inherit;font-size:14px;cursor:pointer;border:0;border-radius:7px;pad
 <li><strong>取消勾选“不可见时关闭源 / Shutdown source when not visible”。</strong></li>
 <li>建议也取消“场景激活时刷新浏览器”，避免切场景时反复重新加载。</li>
 <li>确定后，右键这个来源 → <strong>交互</strong>。</li>
-<li>在交互窗口里，完成上一节的房间、登录同步（如需要）和 Event Bridge 设置。</li>
+<li>在交互窗口里确认 LAPLACE 连接的是自己的直播间。用手机发一条 <code>连接测试01</code>，先确认 LAPLACE 自己能收到。</li>
+<li>在交互窗口内点击 LAPLACE 右上角的 <strong>设置 / 齿轮</strong>，向下找到 <strong>Event Bridge</strong> 并开启。</li>
+<li>桥接地址填 <code>ws://127.0.0.1:9696</code>；如果排队插件使用 9698，这里也用 9698。令牌与排队插件一致，没设令牌时两边留空。</li>
+<li>按页面的连接按钮或等待自动连接。回到排队插件，必要时点击 <strong>重新连接 / 启动桥接</strong>。</li>
+<li>从手机发送 <code>连接测试02</code>，确认它同时出现在 LAPLACE 和排队插件的“弹幕与礼物”区域。仅看到“已连接”不算验证完成。</li>
 </ol>
-<p>OBS 的浏览器环境与 Chrome / Edge 不是同一份本地存储。不能因为普通浏览器已经设置好，就跳过 OBS 内的检查。需要返回 LAPLACE 首页填写同步密钥时，可暂时在来源属性中把 URL 改为首页，在“交互”里完成配置，再回到控制台地址。</p>
+<p>OBS 的浏览器环境与 Chrome / Edge 不是同一份本地存储。请在 OBS 交互窗口内检查房间和连接设置；即使普通浏览器已配置过，这里仍需确认。若需要先在 LAPLACE 首页选择连接方式，可暂时将来源 URL 改为 <code>https://chat.laplace.live/</code>，在“交互”里配置后打开自己的控制台。</p>
 <p>如果选择使用 LAPLACE 首页生成的带配置控制台链接，请使用页面实际提供的链接；不要手工拼接同步密钥参数。含同步密钥的链接请保密。<a href="https://laplace.live/chat/obs-setup">LAPLACE 配置链接说明</a></p>
 <h3 id="52">5.2 让它运行，但不把后台设置播出去</h3>
 <p>在 OBS 来源列表中，<strong>越靠上的来源，画面越在前面</strong>。建议按下面顺序排列：</p>
@@ -283,8 +302,14 @@ button{font:inherit;font-size:14px;cursor:pointer;border:0;border-radius:7px;pad
 <li>切换到平时会用的另一个 OBS 场景，再发送 <code>后台测试03</code>。</li>
 </ol>
 <p>这套流程已有短时测试依据；不同 OBS 版本、显卡和场景设置仍需在自己的电脑上验证。准备长时间直播前，按平时的游戏方式运行一段时间，期间发送几条编号消息检查是否持续收到。</p>
-<h3 id="54">5.4 如果继续用普通浏览器接收</h3>
-<p>把 <code>chat.laplace.live</code> 加入 Chrome / Edge 的“始终保持活跃”列表，并让 LAPLACE 保持为独立窗口中的当前标签页。官方说明指出：休眠例外不能完全消除后台计时器限制，切标签、最小化或被完全遮住仍可能影响接收。单屏玩游戏时优先实际测试上一节的 OBS 方案。<a href="https://laplace.live/chat/dashboard">浏览器后台限制说明</a></p>
+<h3 id="54">5.4 每次直播保持这套方案运行</h3>
+<ol>
+<li>启动排队主程序，再打开 OBS。</li>
+<li>确认当前场景包含配置好的 LAPLACE 接收端，来源没有关闭。</li>
+<li>发一条真实弹幕，确认手机面板或桌面悬浮窗收到。</li>
+<li>保持 OBS 运行，就可以切回游戏；不需要另开第 4 节的副屏浏览器接收方案。</li>
+</ol>
+<p>接下来前往第 6 节，添加观众看到的排队挂件。这里的 LAPLACE 接收端负责收消息，第 6 节的挂件负责展示队列，用途不同。</p>
 <h2 id="6">6. 把排队和弹幕放进直播画面</h2>
 <h3 id="61">6.1 添加排队挂件</h3>
 <ol>
@@ -504,7 +529,7 @@ button{font:inherit;font-size:14px;cursor:pointer;border:0;border-radius:7px;pad
 <h3 id="_1">开播前</h3>
 <ol>
 <li>启动 <code>ZZZ Queue.exe</code>，确认托盘存在。</li>
-<li>打开 OBS，让选定的 LAPLACE 接收端运行。</li>
+<li>有副屏：保持副屏 LAPLACE 控制台运行；无副屏：打开 OBS，让第 5 节的 LAPLACE 接收端运行。</li>
 <li>检查插件的房间号、排队开关和最低金额。</li>
 <li>从手机发一条编号测试弹幕，确认插件收到。</li>
 <li>点击“测试电脑语音”，观察 OBS 音量条；第一次使用或换设备后做一次本地录制。</li>
@@ -559,7 +584,7 @@ button{font:inherit;font-size:14px;cursor:pointer;border:0;border-radius:7px;pad
 <h3 id="l-obs">L. OBS 弹幕来源一片空白</h3>
 <p>先在插件开启“在 OBS 弹幕源中展示聊天”并保存，再发新消息。确认 URL 是 <code>/chat-overlay</code>，且端口与控制台一致。默认关闭或暂时没有消息时，空白正常。</p>
 <h3 id="m">M. 一切正常，切标签 / 切场景后就断了</h3>
-<p>检查真正负责接收的 LAPLACE 页面是否被后台挂起或卸载。普通浏览器按第 5.4 节处理；OBS 按第 5 节检查来源存活设置和各场景配置。排队网页关掉与 LAPLACE 接收页面关掉不是一回事。</p>
+<p>检查真正负责接收的 LAPLACE 页面是否被后台挂起或卸载。副屏浏览器按第 4.4 节处理；OBS 按第 5 节检查来源存活设置和各场景配置。排队网页关掉与 LAPLACE 接收页面关掉不是一回事。</p>
 <h3 id="n">N. 问题仍未解决，怎样反馈</h3>
 <p>到 <a href="https://github.com/Karl-Cao/zzz-queue-obs/issues">GitHub Issues</a> 说明：插件版本、EXE 还是 Python 版、Windows / OBS 版本、在哪一步失败、LAPLACE 是否能收到新消息、插件是否有新事件，以及完整错误文字。截图前遮住同步密钥、桥接令牌和配对码；不要直接上传整个 <code>data</code> 文件夹。</p>
 <h2 id="16">16. 最后留一张日常速查卡</h2>
