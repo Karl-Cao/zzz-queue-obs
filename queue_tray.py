@@ -25,6 +25,8 @@ class Service:
         # Match Node's root (which includes the trailing separator).
         self.instance = hashlib.sha256((str(self.root).lower() + os.sep).encode()).hexdigest()[:16]
         self.http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        self.bridge = 'unknown'
+        self.web_ready = False
 
     def runtime(self):
         return json.loads((self.root / 'data/runtime.json').read_text(encoding='utf-8'))
@@ -36,7 +38,13 @@ class Service:
         try:
             with self.http.open(self.url() + '/api/health', timeout=1) as response:
                 health = json.load(response)
-            return health.get('app') == 'obs-viewer-queue' and health.get('instance') == self.instance
+            valid = health.get('app') == 'obs-viewer-queue' and health.get('instance') == self.instance
+            self.bridge = health.get('bridge', 'unknown') if valid else 'unknown'
+            self.web_ready = False
+            if valid:
+                with self.http.open(self.url() + '/', timeout=1) as response:
+                    self.web_ready = b'id="app"' in response.read(65536)
+            return valid and self.web_ready
         except (OSError, ValueError, KeyError):
             return False
 
@@ -48,7 +56,7 @@ class Service:
         result = subprocess.run([node, str(self.root / 'scripts/start.mjs'), *args],
                                 cwd=self.root, env={**os.environ, 'QUEUE_NO_BROWSER': '1'},
                                 capture_output=True, text=True, encoding='utf-8', errors='replace',
-                                creationflags=FLAGS, timeout=25)
+                                creationflags=FLAGS, timeout=240)
         if result.returncode:
             raise RuntimeError((result.stderr or result.stdout)[-1500:])
 
@@ -66,12 +74,13 @@ class Service:
             time.sleep(.15)
 
     def restart(self):
-        self.stop()
-        self.start()
+        self.command('--restart')
+        if not self.healthy():
+            raise RuntimeError('Restart did not become ready / 重启后服务未就绪')
 
 
 class Tray:
-    def __init__(self):
+    def __init__(self, restart_event=None, show_event=None):
         import pystray
         from PIL import Image
         self.pystray = pystray
@@ -80,6 +89,7 @@ class Tray:
         self.stopping = threading.Event()
         self.status = False
         self.last_open = 0
+        self.restart_event, self.show_event = restart_event, show_event
         self.language = 'zh'
         try:
             self.language = json.loads((ROOT / 'data/tray.json').read_text())['language']
@@ -100,6 +110,8 @@ class Tray:
             item(self.t('打开桌面悬浮窗', 'Open desktop overlay'), lambda: self.work(self.desktop)),
             self.pystray.Menu.SEPARATOR,
             item(self.t('服务正常', 'Service online') if self.status else self.t('服务未就绪', 'Service not ready'), None, enabled=False),
+            item(self.t('控制台网页就绪', 'Dashboard ready') if self.service.web_ready else self.t('控制台网页未就绪', 'Dashboard not ready'), None, enabled=False),
+            item(self.t('桥接已连接（不代表已有弹幕）', 'Bridge connected (not proof of chat)') if self.service.bridge == 'connected' else self.t('桥接未连接：请检查控制台', 'Bridge disconnected: check dashboard'), None, enabled=False),
             item(self.t('重启服务', 'Restart services'), lambda: self.work(self.service.restart)),
             item('English / 中文', self.switch_language),
             item(self.t('退出并停止服务', 'Exit and stop services'), lambda: self.work(self.quit)),
@@ -129,7 +141,7 @@ class Tray:
 
     def work(self, operation):
         if not self.lock.acquire(blocking=False):
-            return
+            return False
         def run():
             try:
                 operation()
@@ -144,6 +156,7 @@ class Tray:
                     self.status = self.service.healthy()
                     self.update_menu()
         threading.Thread(target=run, daemon=True).start()
+        return True
 
     def quit(self):
         # Stop only this installation's verified service, never arbitrary port owners.
@@ -159,14 +172,32 @@ class Tray:
     def setup(self, icon):
         icon.visible = True
         def start():
-            self.service.start()
+            if '--restart' in sys.argv:
+                self.service.restart()
+            else:
+                self.service.start()
             self.open('/')
         self.work(start)
         def monitor():
-            while not self.stopping.wait(5):
-                status = self.service.healthy()
-                if status != self.status:
-                    self.status = status
+            kernel = windows_kernel()
+            pending_restart = pending_show = False
+            ticks = 0
+            while not self.stopping.wait(1):
+                if self.restart_event and kernel.WaitForSingleObject(self.restart_event, 0) == 0:
+                    pending_restart = True
+                if self.show_event and kernel.WaitForSingleObject(self.show_event, 0) == 0:
+                    pending_show = True
+                if pending_restart and self.work(self.service.restart):
+                    pending_restart = False
+                if pending_show and not self.lock.locked():
+                    def ensure_open():
+                        self.service.start()
+                        self.open('/')
+                    if self.work(ensure_open):
+                        pending_show = False
+                ticks += 1
+                if ticks % 5 == 0 and not self.lock.locked():
+                    self.status = self.service.healthy()
                     self.update_menu()
         threading.Thread(target=monitor, daemon=True).start()
 
@@ -182,6 +213,10 @@ def windows_kernel():
     kernel.OpenEventW.restype = wintypes.HANDLE
     kernel.CloseHandle.argtypes = [wintypes.HANDLE]
     kernel.SetEvent.argtypes = [wintypes.HANDLE]
+    kernel.CreateEventW.argtypes = [ctypes.c_void_p, wintypes.BOOL, wintypes.BOOL, wintypes.LPCWSTR]
+    kernel.CreateEventW.restype = wintypes.HANDLE
+    kernel.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+    kernel.WaitForSingleObject.restype = wintypes.DWORD
     return kernel
 
 
@@ -203,17 +238,22 @@ def main():
         return
     kernel = windows_kernel()
     service = Service()
+    restart_event = kernel.CreateEventW(None, False, False, 'Local\\ZZZQueueRestart-' + service.instance)
+    show_event = kernel.CreateEventW(None, False, False, 'Local\\ZZZQueueShow-' + service.instance)
+    if not restart_event or not show_event:
+        raise ctypes.WinError(ctypes.get_last_error())
     mutex = kernel.CreateMutexW(None, False, 'Local\\ZZZQueueTray-' + service.instance)
     if not mutex:
         raise ctypes.WinError(ctypes.get_last_error())
     try:
         if ctypes.get_last_error() == 183:
-            if service.healthy():
-                webbrowser.open(service.url())
+            kernel.SetEvent(restart_event if '--restart' in sys.argv else show_event)
             return
-        Tray().run()
+        Tray(restart_event, show_event).run()
     finally:
         kernel.CloseHandle(mutex)
+        kernel.CloseHandle(restart_event)
+        kernel.CloseHandle(show_event)
 
 
 if __name__ == '__main__':

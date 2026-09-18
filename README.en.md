@@ -22,6 +22,12 @@ Windows 10/11 x64. Node.js and Event Bridge are bundled. Desktop UI uses Windows
 
 ## Connect
 
+### Startup and restart checks
+
+Concurrent starts in the same installation are serialized. Opening the app again asks the existing tray to open its dashboard. `ZZZ Queue.exe --restart` or `python queue_tray.py --restart` requests a restart from the running tray. Restart waits for the old service to stop and preserves its assigned port. Initial startup selects another port if the default belongs to another app, and allows up to 90 seconds on slower PCs. Tray status distinguishes the server, dashboard and bridge; a connected bridge is not proof of live events.
+
+Shutdown is graceful first. Hung-process recovery requires both the exact Node executable and this installation's server entry path to match before stopping its process tree. Different installation folders have separate data; run one installation at a time.
+
 Save your Bilibili room ID in Settings. The default bridge is `ws://127.0.0.1:9696`, started automatically. In the LAPLACE dashboard, open the gear/settings panel, scroll to Event Bridge and enable it with the same URL and token. Leave both tokens blank if none is configured. Send a real message and verify the received-event counter; a connected bridge alone is not proof of live delivery.
 
 Data path: LAPLACE dashboard → Event Bridge → this app. Choose a LAPLACE connection mode providing reliable viewer UIDs; anonymous modes may mask identities. Keep unauthenticated bridges bound to localhost.
