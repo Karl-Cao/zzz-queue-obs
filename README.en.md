@@ -2,6 +2,8 @@
 
 English | [简体中文](README.md)
 
+For the full beginner walkthrough in Chinese, see the [step-by-step user guide](docs/USER-GUIDE.zh-CN.md). An offline printable HTML copy is available in Releases.
+
 A Windows portable Bilibili queue, lottery, manual voice calling and click-through chat overlay. No Docker. This is an independent project, not an official HoYoverse, LAPLACE or OBS product.
 
 ## Install

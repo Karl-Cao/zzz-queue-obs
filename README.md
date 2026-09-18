@@ -2,6 +2,8 @@
 
 [English](README.en.md) | 简体中文
 
+**第一次使用？请阅读 [新手详细操作手册](docs/USER-GUIDE.zh-CN.md)。** 包含 LAPLACE Chat、OBS、单屏方案、手机遥控、排队、抽奖、语音和常见问题。也可从 Releases 下载 `USER-GUIDE.zh-CN.html`，双击离线阅读或打印。
+
 面向 Bilibili 直播的排队、抽奖、手动叫号与桌面穿透弹幕工具。Windows 便携版；无需 Docker。独立项目，非米哈游、LAPLACE 或 OBS 官方产品。
 
 ## 下载安装

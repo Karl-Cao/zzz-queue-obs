@@ -4,6 +4,8 @@ $projectRoot = Split-Path -Parent $PSScriptRoot
 $releaseRoot = Join-Path $projectRoot 'releases'
 $assetsRoot = Join-Path $projectRoot 'release-assets'
 $version = (Get-Content (Join-Path $projectRoot 'package.json') -Raw | ConvertFrom-Json).version
+& $Python (Join-Path $PSScriptRoot 'build-user-guide.py')
+if ($LASTEXITCODE -ne 0) { throw 'User guide rendering failed' }
 $nodeArchive = Join-Path $assetsRoot 'node-v22.23.2-win-x64.zip'
 $bridge = Join-Path $projectRoot 'vendor\leb-server-windows-x64.exe'
 $bridgeSource = Join-Path $assetsRoot 'laplace-event-bridge-0.3.20-source.zip'
@@ -24,7 +26,7 @@ try {
         $destination = Join-Path $releaseRoot $name
         if (Test-Path -LiteralPath $destination) { throw ('Build folder already exists; use a new version or a fresh releases directory: ' + $destination) }
         New-Item -ItemType Directory -Force $destination,(Join-Path $destination 'runtime'),(Join-Path $destination 'licenses') | Out-Null
-        foreach ($folder in @('server','public','scripts','tests','desktop','assets')) { Copy-Item -LiteralPath (Join-Path $projectRoot $folder) -Destination $destination -Recurse }
+        foreach ($folder in @('server','public','scripts','tests','desktop','assets','docs')) { Copy-Item -LiteralPath (Join-Path $projectRoot $folder) -Destination $destination -Recurse }
         foreach ($file in @('package.json','README.md','README.en.md','LICENSE','THIRD-PARTY-NOTICES.md','start.cmd','start-python.cmd','queue_tray.py','requirements.txt','requirements-build.txt','desktop.cmd','desktop-en.cmd','stop.cmd','enable-lan.cmd','enable-lan.ps1')) { Copy-Item -LiteralPath (Join-Path $projectRoot $file) -Destination $destination }
         if ($edition -eq 'exe') { Copy-Item -Path (Join-Path $trayBuild 'dist/ZZZ Queue/*') -Destination $destination -Recurse }
         Copy-Item -Path (Join-Path $trayBuild 'licenses/*') -Destination (Join-Path $destination 'licenses') -Recurse
