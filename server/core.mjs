@@ -1,6 +1,6 @@
 import { randomInt, randomUUID } from 'node:crypto';
 import { normalizeLaplaceEvent } from './laplace.mjs';
-export const defaults = () => ({ settings: {bridgeUrl:'ws://127.0.0.1:9696',bridgeToken:'',roomId:'',command:'排队',freeQueue:true,systemTts:false,streamChat:false,giftMinimum:0.1,lotteryPhrase:'抽奖',lotteryGift:'',lotterySeconds:60,lotteryGiftEnabled:true,open:true,speechLanguage:'zh-CN'},current:null,queue:[],sequence:0,drawSequence:0,lottery:null,announcement:null,history:[],seen:[] });
+export const defaults = () => ({ settings: {bridgeUrl:'ws://127.0.0.1:9696',bridgeToken:'',roomId:'',command:'排队',freeQueue:true,systemTts:false,streamChat:false,giftMinimum:0.1,lotteryPhrase:'抽奖',lotteryGift:'',lotterySeconds:60,lotteryGiftEnabled:true,open:true,speechLanguage:'zh-CN',overlayMode:'pages'},current:null,queue:[],sequence:0,drawSequence:0,lottery:null,announcement:null,history:[],seen:[] });
 export function sorted(s) { return [...s.queue].sort((a,b)=>(b.pin||0)-(a.pin||0)||b.cents-a.cents||a.order-b.order); }
 export function call(s) { const first=s.current; if(first) s.announcement={id:randomUUID(),uid:first.uid,text:s.settings.speechLanguage==='en-US'?`It is ${first.username}'s turn. Please get ready.`:`轮到 ${first.username} 了，请做好准备。`,language:s.settings.speechLanguage,at:Date.now()}; }
 function change(s,fn) { fn(); }
@@ -31,6 +31,7 @@ export function action(s,a) {
   const next={...s.settings}; delete next.autoCall;
   if (a.settings?.speechLanguage && !['zh-CN','en-US'].includes(a.settings.speechLanguage)) throw Error('Invalid speech language / 语音语言无效');
   for(const k of Object.keys(next))if(k in (a.settings||{}))next[k]=a.settings[k];
+  if(!['pages','scroll'].includes(next.overlayMode))throw Error('Invalid overlay mode / 挂件显示模式无效');
   if(!['zh-CN','en-US'].includes(next.speechLanguage))throw Error('Invalid speech language / 语音语言无效');
   for(const k of ['command','lotteryPhrase','roomId','bridgeUrl','bridgeToken','lotteryGift'])if(typeof next[k]!=='string'||next[k].length>500)throw Error('设置文本无效');
   if(next.roomId && !/^\d{1,16}$/.test(next.roomId))throw Error('直播间 ID 需要为数字');
@@ -58,4 +59,4 @@ export function action(s,a) {
  else if(a.type==='cancel'){if(s.lottery)s.lottery.active=false;}
  else throw Error('未知操作');
 }
-export function publicState(s){return {current:s.current||null,queue:sorted(s),lottery:s.lottery?{...s.lottery,entries:undefined,count:s.lottery.entries.length}:null,announcement:s.announcement,settings:{speechLanguage:s.settings.speechLanguage,command:s.settings.command,open:s.settings.open,freeQueue:s.settings.freeQueue,giftMinimum:Math.max(0.1,s.settings.giftMinimum)}};}
+export function publicState(s){return {current:s.current||null,queue:sorted(s),lottery:s.lottery?{...s.lottery,entries:undefined,count:s.lottery.entries.length}:null,announcement:s.announcement,settings:{overlayMode:s.settings.overlayMode,speechLanguage:s.settings.speechLanguage,command:s.settings.command,open:s.settings.open,freeQueue:s.settings.freeQueue,giftMinimum:Math.max(0.1,s.settings.giftMinimum)}};}

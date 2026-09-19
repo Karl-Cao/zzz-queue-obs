@@ -53,7 +53,7 @@
 ## 桌面、OBS 与手机
 
 - 桌面：Ctrl+Alt+Q 切换穿透 / 操作；Ctrl+Alt+H 显示 / 隐藏；操作模式拖动标题移动，托盘菜单可退出。建议无边框窗口游戏；独占全屏可能遮挡桌面窗。
-- OBS 排队：`http://127.0.0.1:实际端口/overlay?lang=zh`（英文使用 `lang=en`）。建议 560 × 900。
+- OBS 排队：`http://127.0.0.1:实际端口/overlay?lang=zh`（英文使用 `lang=en`）。建议 360 × 400。
 - OBS 弹幕：`http://127.0.0.1:实际端口/chat-overlay?lang=zh`。设置中开启“在 OBS 弹幕源中展示聊天”后才输出；默认关闭。桌面与手机仍可看弹幕。
 - 若只想自己看桌面窗，注意“显示器捕获”可能把它录入；使用游戏捕获并检查预览。
 - 手机和平板使用控制台自动识别的局域网地址，输入电脑上显示的八位配对码。会话有效期 12 小时。
@@ -77,3 +77,5 @@ powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1
 ```
 
 构建下载固定版本官方依赖并校验 SHA-256。产物位于 `releases/`，包含依赖许可证及 Event Bridge 对应源码。应用代码采用 MIT；第三方组件见 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)。
+
+OBS 排队挂件适配 360×400；在“连接与规则”选择自动翻页（4 人 / 6 秒）或自动滚动。当前观众始终固定，全部等待观众轮流显示。

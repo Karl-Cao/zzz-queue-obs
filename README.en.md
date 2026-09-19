@@ -49,7 +49,7 @@ Manual advancement prevents queue joins from automatically speaking over chat. I
 ## Screens and voice
 
 - Desktop: Ctrl+Alt+Q toggles controls/click-through; Ctrl+Alt+H shows/hides. Drag the title in control mode. Tray menu provides exit. Use borderless/windowed games; exclusive fullscreen may cover ordinary desktop windows.
-- OBS queue: `http://127.0.0.1:PORT/overlay?lang=en`, suggested 560 × 900.
+- OBS queue: `http://127.0.0.1:PORT/overlay?lang=en`, suggested 360 × 400.
 - OBS chat: `http://127.0.0.1:PORT/chat-overlay?lang=en`. Enable **Show chat in OBS chat overlay** in Settings. It is off by default, independently of desktop/mobile chat.
 - Display Capture may also capture your desktop overlay; use Game Capture and check preview if chat should stay private.
 - Phone/tablet: use the detected LAN URL and pair with the PC's eight-digit code. Sessions last 12 hours.
@@ -71,3 +71,5 @@ powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1
 ```
 
 Build inputs use pinned official versions and SHA-256 verification. Releases contain dependency licenses and corresponding Event Bridge source. App code: MIT. See [third-party notices](THIRD-PARTY-NOTICES.md).
+
+The 360×400 queue overlay keeps the current viewer fixed. Choose automatic pages (4 viewers / 6 seconds) or continuous scrolling in Settings; all waiting viewers are included.

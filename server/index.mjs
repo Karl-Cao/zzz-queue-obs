@@ -46,7 +46,7 @@ async function save() { await mkdir(directory, { recursive: true }); await write
 function mutate(fn) { const work = chain.then(async () => { const backup = structuredClone(s); try { await fn(); await save(); } catch (e) { s = backup; throw e; } }); chain = work.catch(() => {}); return work; }
 function json(res, status, value) { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(value)); }
 async function body(req, limit = 65536) { const chunks = []; let size = 0; for await (const chunk of req) { size += chunk.length; if (size > limit) throw Error('请求过大'); chunks.push(chunk); } return JSON.parse(Buffer.concat(chunks).toString('utf8')); }
-const files = { '/': 'index.html', '/live': 'index.html', '/overlay': 'index.html', '/chat-overlay': 'index.html', '/app.js': 'app.js', '/style.css': 'style.css' };
+const files = { '/': 'index.html', '/live': 'index.html', '/overlay': 'index.html', '/chat-overlay': 'index.html', '/queue-overlay.js': 'queue-overlay.js', '/app.js': 'app.js', '/style.css': 'style.css' };
 let importing;
 const server = createServer(async (req, res) => {
   try {
@@ -54,7 +54,7 @@ const server = createServer(async (req, res) => {
     const url = new URL(req.url, origin), local = localAdmin(req), authorized = access.authorized(req);
     res.setHeader('Cache-Control', 'no-store'); res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('Referrer-Policy', 'no-referrer'); res.setHeader('X-Frame-Options', 'SAMEORIGIN');
     if (req.method === 'GET' && url.pathname === '/api/access') { json(res, 200, { authorized, local }); return; }
-    if (req.method === 'GET' && url.pathname === '/api/health') { json(res, 200, { app: 'obs-viewer-queue', version: '1.6.1', instance, port, bridge: bridge.status.state, lastEventAt: bridge.status.lastEventAt }); return; }
+    if (req.method === 'GET' && url.pathname === '/api/health') { json(res, 200, { app: 'obs-viewer-queue', version: '1.7.0', instance, port, bridge: bridge.status.state, lastEventAt: bridge.status.lastEventAt }); return; }
     if (req.method === 'POST') {
       if (req.headers.origin !== `http://${req.headers.host}` || !req.headers['content-type']?.startsWith('application/json')) { json(res, 403, { error: '请从控制台页面操作' }); return; }
       if (url.pathname === '/api/login') { const a = await body(req); res.setHeader('Set-Cookie', access.login(req.socket.remoteAddress, a.code)); json(res, 200, { ok: true }); return; }
