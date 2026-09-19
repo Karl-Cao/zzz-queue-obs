@@ -19,18 +19,19 @@ test('服务集成：局域网配对、权限、模拟操作、礼物导入与�
   try {
     await Promise.race([once(child.stdout, 'data'), once(child, 'exit').then(() => { throw Error(errors || 'server exited'); })]);
     const local = await snapshot(base); assert.equal(local.access.local, true); assert.match(local.access.pairingCode, /^\d{8}$/);
-    assert.equal(local.settings.roomId, '');
+    assert.equal(local.settings.roomId, '');assert.equal(local.runtime.version,'1.8.0');assert.ok(local.runtime.directory);assert.equal((await (await fetch(base+'/api/state')).json()).runtime,undefined);
+    const copies=await (await fetch(base+'/api/instances')).json();assert.ok(Array.isArray(copies.instances));assert.ok(copies.instances.every(x=>x.port!==port));
     await fetch(base + '/api/action', {method:'POST',headers:{Origin:base,'Content-Type':'application/json'},body:JSON.stringify({type:'settings',settings:{roomId:'446277'}})});
     const address = interfaces()[0]?.address;
     if (address) {
       const remote = `http://${address}:${port}`;
       assert.equal((await fetch(remote + '/api/events?admin=1')).status, 401);
-      assert.equal((await fetch(remote + '/api/gifts')).status, 401);
+      assert.equal((await fetch(remote + '/api/gifts')).status, 401);assert.equal((await fetch(remote+'/api/instances')).status,403);
       const headers = { Origin: remote, 'Content-Type': 'application/json' };
       assert.equal((await fetch(remote + '/api/action', { method: 'POST', headers, body: '{"type":"call"}' })).status, 401);
       const paired = await fetch(remote + '/api/login', { method: 'POST', headers, body: JSON.stringify({ code: local.access.pairingCode }) });
       assert.equal(paired.status, 200); headers.Cookie = paired.headers.get('set-cookie').split(';')[0];
-      const phone = await snapshot(remote, headers); assert.equal(phone.access.local, false); assert.ok(!phone.access.pairingCode); assert.ok(!('bridgeToken' in phone.settings));
+      const phone = await snapshot(remote, headers); assert.equal(phone.access.local, false);assert.equal(phone.runtime.directory,undefined); assert.ok(!phone.access.pairingCode); assert.ok(!('bridgeToken' in phone.settings));
       const mock = await fetch(remote + '/api/mock', { method: 'POST', headers, body: JSON.stringify({ type: 'gift', uid: 'test', username: '测试', priceNormalized: 2, roomId: '446277', id: 'http-test' }) });
       assert.equal(mock.status, 200); const after = await snapshot(base); assert.equal(after.queue[0].cents, 200); assert.equal(after.chat[0].username,'测试');
       assert.equal((await fetch(remote + '/api/action', { method: 'POST', headers: { ...headers, Origin: 'http://evil.example' }, body: '{"type":"call"}' })).status, 403);

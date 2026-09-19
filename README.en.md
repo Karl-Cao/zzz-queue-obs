@@ -72,4 +72,6 @@ powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1
 
 Build inputs use pinned official versions and SHA-256 verification. Releases contain dependency licenses and corresponding Event Bridge source. App code: MIT. See [third-party notices](THIRD-PARTY-NOTICES.md).
 
-The 360×400 queue overlay keeps the current viewer fixed. Choose automatic pages (4 viewers / 6 seconds) or continuous scrolling in Settings; all waiting viewers are included.
+The 360×400 queue overlay keeps the current viewer fixed. Choose automatic pages (capacity follows source height) or continuous scrolling in Settings; all waiting viewers are included.
+
+The dashboard shows the running version, folder and URL, and detects other copies on ports 3667–3766. Operator-only chat diagnostics explain blank overlays. Undo the latest removal/advance within 20 seconds. Configure page interval, scroll speed, font size and amount visibility; ordinary queue updates preserve viewing progress where possible.

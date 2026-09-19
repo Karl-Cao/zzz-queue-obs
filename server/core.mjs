@@ -1,6 +1,6 @@
 import { randomInt, randomUUID } from 'node:crypto';
 import { normalizeLaplaceEvent } from './laplace.mjs';
-export const defaults = () => ({ settings: {bridgeUrl:'ws://127.0.0.1:9696',bridgeToken:'',roomId:'',command:'排队',freeQueue:true,systemTts:false,streamChat:false,giftMinimum:0.1,lotteryPhrase:'抽奖',lotteryGift:'',lotterySeconds:60,lotteryGiftEnabled:true,open:true,speechLanguage:'zh-CN',overlayMode:'pages'},current:null,queue:[],sequence:0,drawSequence:0,lottery:null,announcement:null,history:[],seen:[] });
+export const defaults = () => ({ settings: {bridgeUrl:'ws://127.0.0.1:9696',bridgeToken:'',roomId:'',command:'排队',freeQueue:true,systemTts:false,streamChat:false,giftMinimum:0.1,lotteryPhrase:'抽奖',lotteryGift:'',lotterySeconds:60,lotteryGiftEnabled:true,open:true,speechLanguage:'zh-CN',overlayMode:'pages',overlayPageSeconds:6,overlayScrollSpeed:18,overlayFontSize:15,overlayShowAmount:true},current:null,queue:[],sequence:0,drawSequence:0,lottery:null,announcement:null,history:[],seen:[] });
 export function sorted(s) { return [...s.queue].sort((a,b)=>(b.pin||0)-(a.pin||0)||b.cents-a.cents||a.order-b.order); }
 export function call(s) { const first=s.current; if(first) s.announcement={id:randomUUID(),uid:first.uid,text:s.settings.speechLanguage==='en-US'?`It is ${first.username}'s turn. Please get ready.`:`轮到 ${first.username} 了，请做好准备。`,language:s.settings.speechLanguage,at:Date.now()}; }
 function change(s,fn) { fn(); }
@@ -26,11 +26,24 @@ export function event(s,raw,now=Date.now()) {
   if(s.settings.open && ((s.settings.freeQueue&&e.type==='message'&&e.message.trim()===s.settings.command)||(gift&&cents>=Math.round(Math.max(0.1,s.settings.giftMinimum)*100))))join(s,e,gift?cents:0);
  });return true;
 }
+function remember(s,type,item,next){s.undo={id:randomUUID(),type,item:item?structuredClone(item):null,next:next?structuredClone(next):null,expiresAt:Date.now()+20000};}
+function restore(s,item){if(!item)return;const existing=s.queue.find(x=>x.uid===item.uid);if(existing){existing.cents+=item.cents;existing.order=Math.min(existing.order,item.order);existing.pin=Math.max(existing.pin||0,item.pin||0);}else s.queue.push({...item});}
 export function action(s,a) {
+ if(a.type==='undo'){
+  const u=s.undo;if(!u||a.id!==u.id||Date.now()>u.expiresAt)throw Error('Undo expired / 撤销已过期');
+  if(u.type==='advance'){
+   if((s.current?.uid||null)!==(u.next?.uid||null)||u.item&&s.queue.some(x=>x.uid===u.item.uid))throw Error('Queue changed; cannot undo / 队列已变化，无法撤销');
+   restore(s,s.current);s.current=u.item;s.announcement=null;
+  }else restore(s,u.item);
+  s.history=s.history.filter(x=>x.operationId!==u.id);s.undo=null;return;
+ }
+
  if(a.type==='settings'){
   const next={...s.settings}; delete next.autoCall;
   if (a.settings?.speechLanguage && !['zh-CN','en-US'].includes(a.settings.speechLanguage)) throw Error('Invalid speech language / 语音语言无效');
   for(const k of Object.keys(next))if(k in (a.settings||{}))next[k]=a.settings[k];
+  for(const [key,min,max] of [['overlayPageSeconds',3,30],['overlayScrollSpeed',5,60],['overlayFontSize',12,24]])if(!Number.isInteger(next[key])||next[key]<min||next[key]>max)throw Error('Invalid overlay setting / 挂件设置超出范围');
+  if(typeof next.overlayShowAmount!=='boolean')throw Error('Invalid amount visibility');
   if(!['pages','scroll'].includes(next.overlayMode))throw Error('Invalid overlay mode / 挂件显示模式无效');
   if(!['zh-CN','en-US'].includes(next.speechLanguage))throw Error('Invalid speech language / 语音语言无效');
   for(const k of ['command','lotteryPhrase','roomId','bridgeUrl','bridgeToken','lotteryGift'])if(typeof next[k]!=='string'||next[k].length>500)throw Error('设置文本无效');
@@ -40,12 +53,14 @@ export function action(s,a) {
   for(const k of ['open','lotteryGiftEnabled','freeQueue','systemTts','streamChat'])if(typeof next[k]!=='boolean')throw Error('开关无效');
   if(!Number.isFinite(next.giftMinimum)||next.giftMinimum<0.1||next.giftMinimum>100000)throw Error('最低礼物金额应为 0.10–100000');
   if(!Number.isInteger(next.lotterySeconds)||next.lotterySeconds<5||next.lotterySeconds>86400)throw Error('抽奖时长应为 5–86400 秒');
+  if(next.roomId!==s.settings.roomId)s.undo=null;
   next.command=next.command.trim();next.lotteryPhrase=next.lotteryPhrase.trim();s.settings=next;
- }else if(a.type==='remove')change(s,()=>{const item=s.queue.find(x=>x.uid===a.uid);if(item){s.history.unshift({...item,removedAt:Date.now()});s.history=s.history.slice(0,100);s.queue=s.queue.filter(x=>x!==item);}});
+ }else if(a.type==='remove')change(s,()=>{const item=s.queue.find(x=>x.uid===a.uid);if(item){remember(s,'remove',item);s.history.unshift({...item,operationId:s.undo.id,removedAt:Date.now()});s.history=s.history.slice(0,100);s.queue=s.queue.filter(x=>x!==item);}});
  else if(a.type==='advance') {
   const next=sorted(s)[0]||null;
   if((a.currentUid??null)!==(s.current?.uid??null)||(a.nextUid??null)!==(next?.uid??null))throw Error('Queue changed. Please retry / 队列已变化，请重试');
-  if(s.current){s.history.unshift({...s.current,removedAt:Date.now()});s.history=s.history.slice(0,100);}
+  remember(s,'advance',s.current,next);
+  if(s.current){s.history.unshift({...s.current,operationId:s.undo.id,removedAt:Date.now()});s.history=s.history.slice(0,100);}
   s.current=next?{...next,calledAt:Date.now()}:null;
   if(next)s.queue=s.queue.filter(x=>x.uid!==next.uid);
   s.announcement=null;call(s);
@@ -59,4 +74,4 @@ export function action(s,a) {
  else if(a.type==='cancel'){if(s.lottery)s.lottery.active=false;}
  else throw Error('未知操作');
 }
-export function publicState(s){return {current:s.current||null,queue:sorted(s),lottery:s.lottery?{...s.lottery,entries:undefined,count:s.lottery.entries.length}:null,announcement:s.announcement,settings:{overlayMode:s.settings.overlayMode,speechLanguage:s.settings.speechLanguage,command:s.settings.command,open:s.settings.open,freeQueue:s.settings.freeQueue,giftMinimum:Math.max(0.1,s.settings.giftMinimum)}};}
+export function publicState(s){return {current:s.current||null,queue:sorted(s),lottery:s.lottery?{...s.lottery,entries:undefined,count:s.lottery.entries.length}:null,announcement:s.announcement,settings:{overlayPageSeconds:s.settings.overlayPageSeconds,overlayScrollSpeed:s.settings.overlayScrollSpeed,overlayFontSize:s.settings.overlayFontSize,overlayShowAmount:s.settings.overlayShowAmount,overlayMode:s.settings.overlayMode,speechLanguage:s.settings.speechLanguage,command:s.settings.command,open:s.settings.open,freeQueue:s.settings.freeQueue,giftMinimum:Math.max(0.1,s.settings.giftMinimum)}};}

@@ -22,3 +22,13 @@ test('display mode persists in settings, is public and rejects invalid changes',
  action(s,{type:'settings',settings:{overlayMode:'scroll'}});assert.equal(publicState(s).settings.overlayMode,'scroll');
  assert.throws(()=>action(s,{type:'settings',settings:{overlayMode:'bad'}}));assert.equal(s.settings.overlayMode,'scroll');
 });
+test('page capacity and scroll distance adapt to viewport height',()=>{
+ assert.equal(frame('pages',20,0,480).pageSize,10);
+ assert.equal(frame('pages',20,6000,480).page,1);
+ assert.equal(frame('pages',20,0,960).pages,1);
+ assert.equal(frame('pages',20,0,239).pageSize,4);
+ assert.equal(frame('pages',20,0,1).pageSize,1);
+ assert.equal(frame('scroll',20,999999,960).offset,0);
+ const travel=(960-480)/SCROLL_PX_PER_SECOND*1000;
+ assert.equal(frame('scroll',20,HOLD_MS+travel+1,480).offset,480);
+});

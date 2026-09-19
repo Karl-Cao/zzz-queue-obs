@@ -1,1 +1,1 @@
-{"name":"obs-viewer-queue","version":"1.7.0","private":true,"type":"module","engines":{"node":">=22"},"scripts":{"start":"node server/index.mjs","launch":"node scripts/start.mjs","test":"node --test tests/*.test.mjs"}}
+{"name":"obs-viewer-queue","version":"1.8.0","private":true,"type":"module","engines":{"node":">=22"},"scripts":{"start":"node server/index.mjs","launch":"node scripts/start.mjs","test":"node --test tests/*.test.mjs"}}

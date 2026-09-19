@@ -20,6 +20,7 @@ catch (e) { if (e.code !== 'ENOENT') throw e; }
 delete s.settings.lotteryGiftId;
 delete s.settings.autoCall;
 s.current ||= null;
+s.undo=null;
 if (s.lottery) delete s.lottery.giftId;
 s.settings.giftMinimum = Math.max(0.1, s.settings.giftMinimum);
 const access = createAccess(), catalog = new GiftCatalog(directory), clients = new Map();
@@ -33,7 +34,7 @@ const localAdmin = req => loopback(req.socket.remoteAddress) && /^(127\.0\.0\.1|
 function snapshot(admin, local) {
   if (!admin) return { ...publicState(s), ...(s.settings.streamChat ? {chat:chat.items.slice(0,30).map(({uid, ...item})=>item)} : {}) };
   const settings = { ...s.settings }; if (!local) delete settings.bridgeToken;
-  return { ...publicState(s), edition, settings, history: s.history, chat: chat.items, speech: speech.status, connection: bridge.status.detail, bridge: bridge.status,
+  return { ...publicState(s), edition, runtime:{version:'1.8.0',port,url:origin,...(local?{directory:root}:{})}, undo:s.undo&&s.undo.expiresAt>Date.now()?{id:s.undo.id,type:s.undo.type,expiresAt:s.undo.expiresAt}:null, settings, history: s.history, chat: chat.items, speech: speech.status, connection: bridge.status.detail, bridge: bridge.status,
     access: { local, urls: interfaces().map(x => `http://${x.address}:${port}`), ...(local ? { pairingCode: access.code } : {}) } };
 }
 function broadcast() {
@@ -54,7 +55,13 @@ const server = createServer(async (req, res) => {
     const url = new URL(req.url, origin), local = localAdmin(req), authorized = access.authorized(req);
     res.setHeader('Cache-Control', 'no-store'); res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('Referrer-Policy', 'no-referrer'); res.setHeader('X-Frame-Options', 'SAMEORIGIN');
     if (req.method === 'GET' && url.pathname === '/api/access') { json(res, 200, { authorized, local }); return; }
-    if (req.method === 'GET' && url.pathname === '/api/health') { json(res, 200, { app: 'obs-viewer-queue', version: '1.7.0', instance, port, bridge: bridge.status.state, lastEventAt: bridge.status.lastEventAt }); return; }
+    if (req.method === 'GET' && url.pathname === '/api/health') { json(res, 200, { app: 'obs-viewer-queue', version: '1.8.0', instance, port, bridge: bridge.status.state, lastEventAt: bridge.status.lastEventAt }); return; }
+    if(req.method==='GET'&&url.pathname==='/api/instances'){
+      if(!local){json(res,403,{error:'Local only'});return;}
+      const found=[];let cursor=3667;
+      await Promise.all(Array.from({length:10},async()=>{while(cursor<3767){const target=cursor++;if(target===port)continue;try{const r=await fetch(`http://127.0.0.1:${target}/api/health`,{signal:AbortSignal.timeout(250)});const x=await r.json();if(x.app==='obs-viewer-queue')found.push({port:target,version:x.version,url:`http://127.0.0.1:${target}`});}catch{}}}));
+      json(res,200,{instances:found.sort((a,b)=>a.port-b.port),range:'3667–3766'});return;
+    }
     if (req.method === 'POST') {
       if (req.headers.origin !== `http://${req.headers.host}` || !req.headers['content-type']?.startsWith('application/json')) { json(res, 403, { error: '请从控制台页面操作' }); return; }
       if (url.pathname === '/api/login') { const a = await body(req); res.setHeader('Set-Cookie', access.login(req.socket.remoteAddress, a.code)); json(res, 200, { ok: true }); return; }

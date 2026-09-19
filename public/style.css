@@ -5,18 +5,23 @@
 /* OBS compact queue: fixed current viewer; waiting list alone pages or scrolls. */
 body.queue-overlay{background:transparent;overflow:hidden;font-size:14px}
 body.queue-overlay #app{width:100%;max-width:none;height:100vh;padding:8px}
-.queue-display{width:100%;height:100%;max-width:520px;display:flex;flex-direction:column;gap:5px;background:rgba(20,22,17,.94);border:1px solid #89934c;border-top:5px solid var(--acid);border-radius:9px;padding:10px 12px;overflow:hidden}
+.queue-display{width:100%;height:100%;max-width:none;display:flex;flex-direction:column;gap:5px;background:rgba(20,22,17,.94);border:1px solid #89934c;border-top:5px solid var(--acid);border-radius:9px;padding:10px 12px;overflow:hidden}
 .queue-display .tag{font-size:9px;letter-spacing:2px;line-height:12px}
 .queue-display h2{font-size:14px;line-height:20px;margin:0}
-.queue-display #current{flex:none;height:48px;background:#363922;border-radius:5px}
-.queue-display .viewer{display:flex;align-items:center;gap:7px;height:48px;min-height:48px;padding:0 5px;border-bottom:1px solid #55583e;box-sizing:border-box}
-.queue-display .viewer strong{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:15px}
+.queue-display #current{flex:none;height:var(--viewer-row,48px);background:#363922;border-radius:5px}
+.queue-display .viewer{display:flex;align-items:center;gap:7px;height:var(--viewer-row,48px);min-height:var(--viewer-row,48px);padding:0 5px;border-bottom:1px solid #55583e;box-sizing:border-box}
+.queue-display .viewer strong{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--viewer-font,15px)}
 .queue-display .position{width:25px;flex:none;color:var(--acid);font-size:18px;font-weight:850}
 .queue-display .amount{flex:none;color:var(--acid);font-size:13px;font-variant-numeric:tabular-nums}
 .queue-display .winner{color:#f4a85d;font-size:14px;flex:none}
 .queue-display .waiting-title{display:flex;justify-content:space-between;align-items:center;min-height:22px;margin-top:3px}
 .queue-display #waiting-total{font-size:11px;color:#bebfb1}
-.queue-display #queue-window{height:192px;min-height:192px;flex:none;overflow:hidden}
+.queue-display #queue-window{min-height:0;flex:1;overflow:hidden}
 .queue-display #queue{will-change:transform}
-.queue-display footer{margin-top:auto;font-size:11px;line-height:18px;color:#b6baa5;text-align:right;white-space:nowrap}
+.queue-display footer{flex:none;margin-top:0;font-size:11px;line-height:18px;color:#b6baa5;text-align:right;white-space:nowrap}
 .queue-display .no-current,.queue-display .queue-empty{color:#aaa99d;padding:13px 5px;font-size:13px}
+
+@media(max-height:320px){.queue-display .tag{display:none}.queue-display{padding:6px 8px;gap:3px}}
+body.chat-overlay{overflow:hidden;background:transparent}body.chat-overlay #app{width:100%;max-width:none;height:100vh;padding:8px}body.chat-overlay .chat-card{height:100%;margin:0;padding:12px;display:flex;flex-direction:column;min-height:0}body.chat-overlay #chat{flex:1;min-height:0;max-height:none;overflow-y:auto;overflow-wrap:anywhere;scrollbar-width:none}body.chat-overlay #chat::-webkit-scrollbar{display:none}
+
+.runtime-info{font-size:13px;overflow-wrap:anywhere;padding:14px;border:1px solid var(--line);margin-bottom:14px}.diagnostic{border-left:4px solid var(--acid);padding:10px;margin:10px 0}.instance-warning{color:#ffc78a}#undo{margin-top:8px}
