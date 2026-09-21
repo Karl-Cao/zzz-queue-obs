@@ -10,9 +10,14 @@ export function frame(mode,count,elapsed,viewport=192,options={}){
  return {pageSize,page:0,pages,offset:phase<HOLD_MS?0:Math.min(distance,(phase-HOLD_MS)/1000*speed)};
 }
 const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+export function waitingTime(person,now=Date.now()){
+ if(!Number.isFinite(person.joinedAt))return null;
+ const seconds=Math.max(0,Math.floor(((person.calledAt??now)-person.joinedAt)/1000));
+ return seconds>=3600?`${Math.floor(seconds/3600)}:${String(Math.floor(seconds/60)%60).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`:`${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`;
+}
 export class QueueOverlay{
  constructor({root,lang}){this.root=root;this.t=(zh,en)=>lang==='en'?en:zh;this.queue=root.querySelector('#queue');this.footer=root.querySelector('#queue-footer');this.viewport=root.querySelector('#queue-window');this.height=this.viewport.clientHeight||192;this.observer=new ResizeObserver(()=>{const height=this.viewport.clientHeight;if(height>0&&height!==this.height){this.height=height;this.start=performance.now();this.page=-1;this.paint(performance.now(),true);}});this.observer.observe(this.viewport);this.signature='';this.page=-1;this.start=performance.now();this.tick=this.tick.bind(this);this.raf=requestAnimationFrame(this.tick);}
- row(person,index){return `<div class="viewer"><span class="position">${index==null?'▶':String(index+1).padStart(2,'0')}</span><strong title="${escape(person.username)}">${escape(person.username)}</strong>${person.pin?`<span class="winner" title="${this.t('抽奖中奖','Lottery winner')}">★</span>`:''}${this.state?.settings.overlayShowAmount===false?'':`<span class="amount">¥${(person.cents/100).toFixed(2)}</span>`}</div>`;}
+ row(person,index){return `<div class="viewer"><span class="position">${index==null?'▶':String(index+1).padStart(2,'0')}</span><strong title="${escape(person.username)}">${escape(person.username)}</strong>${person.pin?`<span class="winner" title="${this.t('抽奖中奖','Lottery winner')}">★</span>`:''}<span class="viewer-details">${this.state?.settings.overlayShowAmount===false?'':`<span class="amount">¥${(person.cents/100).toFixed(2)}</span>`}<span class="wait-time">${waitingTime(person)===null?this.t('等待时间未知','Wait unknown'):this.t(person.calledAt?'已等待 ':'等待 ',person.calledAt?'Waited ':'Wait ')+waitingTime(person)}</span></span></div>`;}
  update(state){
   const now=performance.now(),old=this.state;
   const signature=JSON.stringify([state.current?.uid,state.current?.calledAt,state.settings.overlayMode,state.settings.overlayPageSeconds,state.settings.overlayScrollSpeed,state.settings.overlayFontSize]);
@@ -35,7 +40,10 @@ export class QueueOverlay{
   if(!this.state)return;
   const {queue,settings}=this.state,mode=settings.overlayMode||'pages';
   const view=frame(mode,queue.length,Math.max(0,now-this.start),this.height,{...settings,rowHeight:this.rowHeight});
-  if(force||this.page!==view.page){
+  const second=Math.floor(Date.now()/1000);
+  if(force||this.page!==view.page||this.second!==second){
+   this.second=second;
+   if(this.state.current)this.root.querySelector('#current').innerHTML=this.row(this.state.current,null);
    const first=mode==='scroll'?0:view.page*view.pageSize,items=mode==='scroll'?queue:queue.slice(first,first+view.pageSize);
    this.queue.innerHTML=items.length?items.map((x,i)=>this.row(x,first+i)).join(''):`<div class="queue-empty">${this.t('等待观众加入','Waiting for viewers')}</div>`;
    this.page=view.page;

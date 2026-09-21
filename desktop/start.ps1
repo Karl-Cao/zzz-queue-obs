@@ -11,4 +11,4 @@ if($CompileOnly){'Desktop overlay compiled';exit}
 $runtime=Get-Content (Join-Path $root 'data\runtime.json') -Raw | ConvertFrom-Json
 $mutex=[Threading.Mutex]::new($false,('Local\ZZZQueueDesktop-'+$runtime.instance))
 if(!$mutex.WaitOne(0)){exit}
-try{Start-Process -FilePath $exe -ArgumentList @([string]$runtime.port,$Language,$runtime.instance,('"'+(Join-Path $root 'assets\app.ico')+'"')) -Wait}finally{$mutex.ReleaseMutex();$mutex.Dispose()}
+try{Start-Process -FilePath $exe -ArgumentList @([string]$runtime.port,$Language,$runtime.instance,('"'+(Join-Path $root 'assets\overlay.ico')+'"')) -Wait}finally{$mutex.ReleaseMutex();$mutex.Dispose()}

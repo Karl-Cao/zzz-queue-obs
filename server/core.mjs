@@ -4,8 +4,8 @@ export const defaults = () => ({ settings: {bridgeUrl:'ws://127.0.0.1:9696',brid
 export function sorted(s) { return [...s.queue].sort((a,b)=>(b.pin||0)-(a.pin||0)||b.cents-a.cents||a.order-b.order); }
 export function call(s) { const first=s.current; if(first) s.announcement={id:randomUUID(),uid:first.uid,text:s.settings.speechLanguage==='en-US'?`It is ${first.username}'s turn. Please get ready.`:`轮到 ${first.username} 了，请做好准备。`,language:s.settings.speechLanguage,at:Date.now()}; }
 function change(s,fn) { fn(); }
-function join(s,e,cents=0) { let item=s.queue.find(x=>x.uid===e.uid); if(!item){if(s.queue.length>=1000) throw Error('队列已满（1000 人）');item={uid:e.uid,username:e.username,cents:0,order:++s.sequence};s.queue.push(item);} item.username=e.username;item.cents+=cents;return item; }
-export function finish(s,now=Date.now()) { if(!s.lottery?.active)return; change(s,()=>{const entries=s.lottery.entries.filter(x=>x.uid!==s.current?.uid);s.lottery.active=false;s.lottery.finishedAt=now;if(!entries.length){s.lottery.winner=null;return;}const winner=entries[randomInt(entries.length)];s.lottery.winner=winner;join(s,winner).pin=++s.drawSequence;}); }
+function join(s,e,cents=0,now=Date.now()) { let item=s.queue.find(x=>x.uid===e.uid); if(!item){if(s.queue.length>=1000) throw Error('队列已满（1000 人）');item={uid:e.uid,username:e.username,cents:0,order:++s.sequence,joinedAt:now};s.queue.push(item);} item.username=e.username;item.cents+=cents;return item; }
+export function finish(s,now=Date.now()) { if(!s.lottery?.active)return; change(s,()=>{const entries=s.lottery.entries.filter(x=>x.uid!==s.current?.uid);s.lottery.active=false;s.lottery.finishedAt=now;if(!entries.length){s.lottery.winner=null;return;}const winner=entries[randomInt(entries.length)];s.lottery.winner=winner;join(s,winner,0,now).pin=++s.drawSequence;}); }
 export function event(s,raw,now=Date.now()) {
  if(s.lottery?.active && now>=s.lottery.endsAt)finish(s,now);
  const e=normalizeLaplaceEvent(raw);
@@ -23,11 +23,11 @@ export function event(s,raw,now=Date.now()) {
   if(l?.active && ((e.type==='message'&&e.message.trim()===l.phrase)||(gift&&l.giftEnabled&&e.price>=l.minimum&&(!l.gift||e.giftName===l.gift)))) {
    if(!l.entries.some(x=>x.uid===e.uid))l.entries.push({uid:e.uid,username:e.username});
   }
-  if(s.settings.open && ((s.settings.freeQueue&&e.type==='message'&&e.message.trim()===s.settings.command)||(gift&&cents>=Math.round(Math.max(0.1,s.settings.giftMinimum)*100))))join(s,e,gift?cents:0);
+  if(s.settings.open && ((s.settings.freeQueue&&e.type==='message'&&e.message.trim()===s.settings.command)||(gift&&cents>=Math.round(Math.max(0.1,s.settings.giftMinimum)*100))))join(s,e,gift?cents:0,now);
  });return true;
 }
 function remember(s,type,item,next){s.undo={id:randomUUID(),type,item:item?structuredClone(item):null,next:next?structuredClone(next):null,expiresAt:Date.now()+20000};}
-function restore(s,item){if(!item)return;const existing=s.queue.find(x=>x.uid===item.uid);if(existing){existing.cents+=item.cents;existing.order=Math.min(existing.order,item.order);existing.pin=Math.max(existing.pin||0,item.pin||0);}else s.queue.push({...item});}
+function restore(s,item){if(!item)return;const existing=s.queue.find(x=>x.uid===item.uid);if(existing){existing.cents+=item.cents;existing.joinedAt=Number.isFinite(item.joinedAt)?Math.min(item.joinedAt,existing.joinedAt??Infinity):undefined;existing.order=Math.min(existing.order,item.order);existing.pin=Math.max(existing.pin||0,item.pin||0);}else s.queue.push({...item});}
 export function action(s,a) {
  if(a.type==='undo'){
   const u=s.undo;if(!u||a.id!==u.id||Date.now()>u.expiresAt)throw Error('Undo expired / 撤销已过期');
