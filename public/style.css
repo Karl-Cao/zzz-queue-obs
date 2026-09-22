@@ -44,3 +44,5 @@ body.chat-overlay{overflow:hidden;background:transparent}body.chat-overlay #app{
 .queue-display .amount{font-size:13px;font-weight:800}
 .queue-display .wait-time{font-size:13px;font-weight:750;line-height:18px;background:#294650;color:#fff;padding:0 6px;border-radius:3px;margin-left:auto}
 @media(max-width:400px){.row{gap:8px}.row .rank{width:28px}.row .who{min-width:0}.row .danger{padding:8px}.queue-metrics{gap:5px}.queue-metrics .money,.wait-badge{font-size:13px;padding:4px 6px}}
+
+.guard-badge{display:inline-block;font-size:11px;line-height:16px;padding:0 4px;border-radius:3px;color:#fff;background:#654477;vertical-align:middle;font-weight:700}

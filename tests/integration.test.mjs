@@ -19,7 +19,7 @@ test('服务集成：局域网配对、权限、模拟操作、礼物导入与�
   try {
     await Promise.race([once(child.stdout, 'data'), once(child, 'exit').then(() => { throw Error(errors || 'server exited'); })]);
     const local = await snapshot(base); assert.equal(local.access.local, true); assert.match(local.access.pairingCode, /^\d{8}$/);
-    assert.equal(local.settings.roomId, '');assert.equal(local.runtime.version,'1.9.1');assert.ok(local.runtime.directory);assert.equal((await (await fetch(base+'/api/state')).json()).runtime,undefined);
+    assert.equal(local.settings.roomId, '');assert.equal(local.runtime.version,'1.10.0');assert.ok(local.runtime.directory);assert.equal((await (await fetch(base+'/api/state')).json()).runtime,undefined);
     const copies=await (await fetch(base+'/api/instances')).json();assert.ok(Array.isArray(copies.instances));assert.ok(copies.instances.every(x=>x.port!==port));
     await fetch(base + '/api/action', {method:'POST',headers:{Origin:base,'Content-Type':'application/json'},body:JSON.stringify({type:'settings',settings:{roomId:'446277'}})});
     const address = interfaces()[0]?.address;

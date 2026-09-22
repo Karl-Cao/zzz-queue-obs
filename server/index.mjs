@@ -1,7 +1,7 @@
 import { createServer } from 'node:http';
 import { readFile, mkdir, writeFile, rename } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { defaults, action, event, finish, publicState } from './core.mjs';
+import { defaults, action, event, finish, publicState, consolidateQueue } from './core.mjs';
 import { allowedHost, allowedPeer, createAccess, interfaces, loopback } from './network.mjs';
 import { Bridge } from './bridge.mjs';
 import { GiftCatalog } from './gifts.mjs';
@@ -21,6 +21,7 @@ delete s.settings.lotteryGiftId;
 delete s.settings.autoCall;
 s.current ||= null;
 s.undo=null;
+consolidateQueue(s);
 if (s.lottery) delete s.lottery.giftId;
 s.settings.giftMinimum = Math.max(0.1, s.settings.giftMinimum);
 const access = createAccess(), catalog = new GiftCatalog(directory), clients = new Map();
@@ -28,13 +29,13 @@ const chat = new ChatFeed(), speech = new SystemSpeech(broadcast);
 speech.lastId = s.announcement?.id;
 const instance = createHash('sha256').update(root.toLowerCase()).digest('hex').slice(0,16);
 let chain = Promise.resolve();
-const ingest = e => { if (event(s, e)) chat.add(e, s.settings.roomId); };
+const ingest = (e, manual=false) => { if (event(s, e, Date.now(), manual)) chat.add(e, s.settings.roomId); };
 const bridge = new Bridge(() => s.settings, events => mutate(() => { for (const e of events) ingest(e); }), broadcast);
 const localAdmin = req => loopback(req.socket.remoteAddress) && /^(127\.0\.0\.1|localhost):/.test(req.headers.host || '');
 function snapshot(admin, local) {
   if (!admin) return { ...publicState(s), ...(s.settings.streamChat ? {chat:chat.items.slice(0,30).map(({uid, ...item})=>item)} : {}) };
   const settings = { ...s.settings }; if (!local) delete settings.bridgeToken;
-  return { ...publicState(s), edition, runtime:{version:'1.9.1',port,url:origin,...(local?{directory:root}:{})}, undo:s.undo&&s.undo.expiresAt>Date.now()?{id:s.undo.id,type:s.undo.type,expiresAt:s.undo.expiresAt}:null, settings, history: s.history, chat: chat.items, speech: speech.status, connection: bridge.status.detail, bridge: bridge.status,
+  return { ...publicState(s), edition, runtime:{version:'1.10.0',port,url:origin,...(local?{directory:root}:{})}, undo:s.undo&&s.undo.expiresAt>Date.now()?{id:s.undo.id,type:s.undo.type,expiresAt:s.undo.expiresAt}:null, settings, history: s.history, chat: chat.items, speech: speech.status, connection: bridge.status.detail, bridge: bridge.status,
     access: { local, urls: interfaces().map(x => `http://${x.address}:${port}`), ...(local ? { pairingCode: access.code } : {}) } };
 }
 function broadcast() {
@@ -55,7 +56,7 @@ const server = createServer(async (req, res) => {
     const url = new URL(req.url, origin), local = localAdmin(req), authorized = access.authorized(req);
     res.setHeader('Cache-Control', 'no-store'); res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('Referrer-Policy', 'no-referrer'); res.setHeader('X-Frame-Options', 'SAMEORIGIN');
     if (req.method === 'GET' && url.pathname === '/api/access') { json(res, 200, { authorized, local }); return; }
-    if (req.method === 'GET' && url.pathname === '/api/health') { json(res, 200, { app: 'obs-viewer-queue', version: '1.9.1', instance, port, bridge: bridge.status.state, lastEventAt: bridge.status.lastEventAt }); return; }
+    if (req.method === 'GET' && url.pathname === '/api/health') { json(res, 200, { app: 'obs-viewer-queue', version: '1.10.0', instance, port, bridge: bridge.status.state, lastEventAt: bridge.status.lastEventAt }); return; }
     if(req.method==='GET'&&url.pathname==='/api/instances'){
       if(!local){json(res,403,{error:'Local only'});return;}
       const found=[];let cursor=3667;
@@ -85,7 +86,7 @@ const server = createServer(async (req, res) => {
       if (url.pathname === '/api/action' || url.pathname === '/api/mock') {
         const a = await body(req), previous = s.settings.bridgeUrl + s.settings.bridgeToken, previousRoom = s.settings.roomId;
         if (!local && a.type === 'settings' && a.settings) delete a.settings.bridgeToken;
-        await mutate(() => { if (url.pathname === '/api/mock') ingest(a); else action(s, a); if (s.settings.roomId !== previousRoom) chat.clear(); });
+        await mutate(() => { if (url.pathname === '/api/mock') ingest(a,true); else action(s, a); if (s.settings.roomId !== previousRoom) chat.clear(); });
         if (previous !== s.settings.bridgeUrl + s.settings.bridgeToken) bridge.connect();
         json(res, 200, { ok: true }); return;
       }

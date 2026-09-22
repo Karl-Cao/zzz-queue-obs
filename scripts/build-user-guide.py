@@ -30,7 +30,7 @@ button{font:inherit;font-size:14px;cursor:pointer;border:0;border-radius:7px;pad
 @media(max-width:850px){.layout{display:block;padding:12px}nav{position:static;max-height:280px;margin-bottom:15px}main{padding:23px 18px}h1{font-size:27px}h2{font-size:22px}table{font-size:14px}th,td{padding:7px}header{padding:18px}}
 @media print{body{background:white;font-size:11pt;line-height:1.65}header,nav,.actions{display:none}.layout{display:block;padding:0}main{border:0;padding:0}h2,h3{break-after:avoid}tr{break-inside:avoid}a{color:inherit}h2{margin-top:24px;padding-top:14px}table{font-size:10pt}code{background:none}@page{margin:18mm}}
 </style></head><body>
-<header><img alt="应用图标" src="data:image/png;base64,ICON"><div><strong>绳匠委托终端 · 新手手册</strong><p>无需编程知识 · 适用 v1.9.1 · 离线可读</p></div></header>
+<header><img alt="应用图标" src="data:image/png;base64,ICON"><div><strong>绳匠委托终端 · 新手手册</strong><p>无需编程知识 · 适用 v1.10.0 · 离线可读</p></div></header>
 <div class="layout"><nav aria-label="章节目录"><strong>按步骤开始</strong>TOC<p class="hint">查找问题：按 Ctrl+F，输入“手机”“声音”或“连接失败”。</p></nav>
 <main><div class="actions"><button onclick="window.print()">打印 / 保存为 PDF</button><span class="hint">本文件可独立保存或发送给其他主播；外部链接需要联网。</span></div>ARTICLE</main></div>
 </body></html>'''

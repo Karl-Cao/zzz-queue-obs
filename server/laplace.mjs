@@ -44,9 +44,30 @@ export function normalizeLaplaceEvent(event) {
   // RMB 1), while Super Chat price is already expressed in RMB. Keep the old
   // direct-price behavior only for legacy gift payloads that have no LAPLACE
   // gift metadata.
+  const blindGift = field(event, ['blindGift','blind_gift']);
+  let valuationMissing = false;
+  let valuationSource = null;
   let price = 0;
   if (type === "gift" && coinType === "silver") {
     price = 0;
+  } else if (type === 'gift' && blindGift && typeof blindGift === 'object') {
+    // Upstream SEND_GIFT_BLIND_GIFT: gift_tip_price is the reward's UNIT
+    // value in gold coins; original_gift_price is only the box purchase price.
+    const tip = blindGift.gift_tip_price;
+    const unit = tip === undefined || tip === null || tip === '' ? NaN : Number(tip);
+    if (Number.isFinite(unit) && unit >= 0 && Number.isInteger(giftAmount) && giftAmount > 0) {
+      price = unit * giftAmount / 1000;
+      valuationSource = 'reward';
+    } else {
+      const valid=value=>value!==undefined&&value!==null&&value!==''&&Number.isFinite(Number(value))&&Number(value)>=0;
+      // Prefer actual total paid when present; original_gift_price is per box.
+      if(valid(normalizedPrice)) price=Number(normalizedPrice);
+      else if(valid(totalCoin)) price=Number(totalCoin)/1000;
+      else if(valid(explicitPrice)) price=Number(explicitPrice)/1000;
+      else if(valid(blindGift.original_gift_price)&&Number.isInteger(giftAmount)&&giftAmount>0) price=Number(blindGift.original_gift_price)*giftAmount/1000;
+      else valuationMissing=true;
+      if(!valuationMissing)valuationSource='purchase';
+    }
   } else if (normalizedPrice !== undefined) {
     price = Number(normalizedPrice);
   } else if (totalCoin !== undefined) {
@@ -67,7 +88,12 @@ export function normalizeLaplaceEvent(event) {
   const roomId = String(field(event, ["origin", "roomId", "room_id"], ""));
   const comboEnd = field(event, ["comboEnd", "combo_end", "repeatEnd", "repeat_end"], true);
 
+  const guard = field(event, ['guardType','guard_level','guardLevel']);
+  const guardType = guard !== undefined && [0,1,2,3].includes(Number(guard)) ? Number(guard) : undefined;
   return {
+    valuationSource,
+    valuationMissing,
+    guardType,
     type,
     uid,
     username,

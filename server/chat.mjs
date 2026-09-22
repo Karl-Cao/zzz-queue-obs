@@ -10,7 +10,7 @@ export class ChatFeed {
     if (this.seen.has(key)) return false;
     this.seen.add(key);
     if (this.seen.size > 2000) this.seen.delete(this.seen.values().next().value);
-    this.items.unshift({ id: key, at: now, type: e.type, uid: e.uid.slice(0,100), username: e.username.slice(0,100), message: e.message.slice(0,2000), giftName: e.giftName.slice(0,100), amount: e.price, quantity: e.giftAmount });
+    this.items.unshift({ id: key, at: now, type: e.type, uid: e.uid.slice(0,100), username: e.username.slice(0,100), message: e.message.slice(0,2000), giftName: e.giftName.slice(0,100), amount: e.price, valuationMissing: e.valuationMissing, valuationSource: e.valuationSource, quantity: e.giftAmount });
     this.items.length = Math.min(this.items.length, 200); return true;
   }
   clear() { this.items = []; this.seen.clear(); }

@@ -10,6 +10,7 @@ export function frame(mode,count,elapsed,viewport=192,options={}){
  return {pageSize,page:0,pages,offset:phase<HOLD_MS?0:Math.min(distance,(phase-HOLD_MS)/1000*speed)};
 }
 const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+export function guardLabel(person,lang='zh'){return (lang==='en'?['','Governor','Admiral','Captain']:['','总督','提督','舰长'])[person.guardType]||'';}
 export function waitingTime(person,now=Date.now()){
  if(!Number.isFinite(person.joinedAt))return null;
  const seconds=Math.max(0,Math.floor(((person.calledAt??now)-person.joinedAt)/1000));
@@ -17,7 +18,7 @@ export function waitingTime(person,now=Date.now()){
 }
 export class QueueOverlay{
  constructor({root,lang}){this.root=root;this.t=(zh,en)=>lang==='en'?en:zh;this.queue=root.querySelector('#queue');this.footer=root.querySelector('#queue-footer');this.viewport=root.querySelector('#queue-window');this.height=this.viewport.clientHeight||192;this.observer=new ResizeObserver(()=>{const height=this.viewport.clientHeight;if(height>0&&height!==this.height){this.height=height;this.start=performance.now();this.page=-1;this.paint(performance.now(),true);}});this.observer.observe(this.viewport);this.signature='';this.page=-1;this.start=performance.now();this.tick=this.tick.bind(this);this.raf=requestAnimationFrame(this.tick);}
- row(person,index){return `<div class="viewer"><span class="position">${index==null?'▶':String(index+1).padStart(2,'0')}</span><strong title="${escape(person.username)}">${escape(person.username)}</strong>${person.pin?`<span class="winner" title="${this.t('抽奖中奖','Lottery winner')}">★</span>`:''}<span class="viewer-details">${this.state?.settings.overlayShowAmount===false?'':`<span class="amount">¥${(person.cents/100).toFixed(2)}</span>`}<span class="wait-time">${waitingTime(person)===null?this.t('等待时间未知','Wait unknown'):this.t(person.calledAt?'已等待 ':'等待 ',person.calledAt?'Waited ':'Wait ')+waitingTime(person)}</span></span></div>`;}
+ row(person,index){return `<div class="viewer"><span class="position">${index==null?'▶':String(index+1).padStart(2,'0')}</span><strong title="${escape(person.username)}">${escape(person.username)}${guardLabel(person)?` <span class="guard-badge">${this.t(guardLabel(person),guardLabel(person,'en'))}</span>`:''}</strong>${person.pin?`<span class="winner" title="${this.t('抽奖中奖','Lottery winner')}">★</span>`:''}<span class="viewer-details">${this.state?.settings.overlayShowAmount===false?'':`<span class="amount">¥${(person.cents/100).toFixed(2)}</span>`}<span class="wait-time">${waitingTime(person)===null?this.t('等待时间未知','Wait unknown'):this.t(person.calledAt?'已等待 ':'等待 ',person.calledAt?'Waited ':'Wait ')+waitingTime(person)}</span></span></div>`;}
  update(state){
   const now=performance.now(),old=this.state;
   const signature=JSON.stringify([state.current?.uid,state.current?.calledAt,state.settings.overlayMode,state.settings.overlayPageSeconds,state.settings.overlayScrollSpeed,state.settings.overlayFontSize]);
