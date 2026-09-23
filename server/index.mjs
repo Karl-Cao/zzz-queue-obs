@@ -8,6 +8,7 @@ import { GiftCatalog } from './gifts.mjs';
 import { ChatFeed } from './chat.mjs';
 import { SystemSpeech } from './speech.mjs';
 import { createHash } from 'node:crypto';
+import { addLaplaceDashboard } from './obs.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const directory = process.env.QUEUE_DATA_DIR || root + 'data';
@@ -67,6 +68,20 @@ const server = createServer(async (req, res) => {
       if (req.headers.origin !== `http://${req.headers.host}` || !req.headers['content-type']?.startsWith('application/json')) { json(res, 403, { error: '请从控制台页面操作' }); return; }
       if (url.pathname === '/api/login') { const a = await body(req); res.setHeader('Set-Cookie', access.login(req.socket.remoteAddress, a.code)); json(res, 200, { ok: true }); return; }
       if (!authorized) { json(res, 401, { error: '请先输入电脑控制台上的配对码' }); return; }
+      if (url.pathname === '/api/obs/add-dashboard') {
+        if (!local) { json(res, 403, { error: '一键添加只能在直播电脑的控制台使用' }); return; }
+        const input = await body(req, 16 * 1024);
+        const obsPort = Number(input.port || 4455);
+        if (!Number.isInteger(obsPort) || obsPort < 1 || obsPort > 65535) { json(res, 400, { error: 'OBS WebSocket 端口无效' }); return; }
+        let dashboard;
+        try { dashboard = new URL(input.url); } catch { json(res, 400, { error: '请粘贴 LAPLACE Dashboard 完整地址' }); return; }
+        if (dashboard.protocol !== 'https:' || dashboard.hostname !== 'chat.laplace.live' || !/^\/dashboard\/\d+$/.test(dashboard.pathname) || dashboard.hash) {
+          json(res, 400, { error: '地址必须是 https://chat.laplace.live/dashboard/房间号' }); return;
+        }
+        if (typeof input.password !== 'string' || input.password.length > 1024) { json(res, 400, { error: 'OBS WebSocket 密码无效' }); return; }
+        const result = await addLaplaceDashboard({ port: obsPort, password: input.password, url: dashboard.href });
+        json(res, 200, { ok: true, ...result }); return;
+      }
       if (url.pathname === '/api/speech/test') {
         await body(req);
         if (!s.settings.systemTts || !speech.status.ready) { json(res,409,{error:'请先在控制台启用电脑后台 TTS，等待语音就绪'}); return; }
