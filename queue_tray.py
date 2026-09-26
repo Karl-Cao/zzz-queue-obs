@@ -19,6 +19,18 @@ ROOT = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__
 FLAGS = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 
 
+def open_dashboard(service, language='zh', path='/'):
+    """Open the existing service even if its first tray instance is unresponsive."""
+    if not service.healthy():
+        return False
+    url = service.url() + path + '?lang=' + language
+    if os.name == 'nt':
+        os.startfile(url)
+    else:
+        webbrowser.open(url)
+    return True
+
+
 class Service:
     def __init__(self, root=ROOT):
         self.root = Path(root).resolve()
@@ -80,7 +92,7 @@ class Service:
 
 
 class Tray:
-    def __init__(self, restart_event=None, show_event=None):
+    def __init__(self, restart_event=None, show_event=None, attention_event=None):
         import pystray
         from PIL import Image
         self.pystray = pystray
@@ -89,7 +101,7 @@ class Tray:
         self.stopping = threading.Event()
         self.status = False
         self.last_open = 0
-        self.restart_event, self.show_event = restart_event, show_event
+        self.restart_event, self.show_event, self.attention_event = restart_event, show_event, attention_event
         self.language = 'zh'
         try:
             self.language = json.loads((ROOT / 'data/tray.json').read_text())['language']
@@ -112,7 +124,7 @@ class Tray:
             item(self.t('服务正常', 'Service online') if self.status else self.t('服务未就绪', 'Service not ready'), None, enabled=False),
             item(self.t('控制台网页就绪', 'Dashboard ready') if self.service.web_ready else self.t('控制台网页未就绪', 'Dashboard not ready'), None, enabled=False),
             item(self.t('桥接已连接（不代表已有弹幕）', 'Bridge connected (not proof of chat)') if self.service.bridge == 'connected' else self.t('桥接未连接：请检查控制台', 'Bridge disconnected: check dashboard'), None, enabled=False),
-            item(self.t('重启服务', 'Restart services'), lambda: self.work(self.service.restart)),
+            item(self.t('重启服务', 'Restart services'), lambda: self.work(self.restart_services)),
             item('English / 中文', self.switch_language),
             item(self.t('退出并停止服务', 'Exit and stop services'), lambda: self.work(self.quit)),
         )
@@ -128,16 +140,46 @@ class Tray:
         if time.monotonic() - self.last_open < .7:
             return
         self.last_open = time.monotonic()
-        if self.service.healthy():
-            webbrowser.open(self.service.url() + path + '?lang=' + self.language)
-        else:
+        if not open_dashboard(self.service, self.language, path):
             self.icon.notify(self.t('请右键选择重启服务。', 'Choose Restart services from the tray menu.'), 'ZZZ Queue')
 
     def desktop(self):
         self.service.start()
-        subprocess.Popen(['powershell.exe', '-NoProfile', '-STA', '-WindowStyle', 'Hidden',
-                          '-ExecutionPolicy', 'Bypass', '-File', str(ROOT / 'desktop/start.ps1'),
-                          '-Language', self.language], cwd=ROOT, creationflags=FLAGS)
+        log_path = ROOT / 'data/desktop-runtime/launcher.log'
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        with log_path.open('ab') as log:
+            subprocess.Popen(['powershell.exe', '-NoProfile', '-NonInteractive', '-STA',
+                              '-WindowStyle', 'Hidden', '-ExecutionPolicy', 'Bypass',
+                              '-File', str(ROOT / 'desktop/start.ps1'),
+                              '-Language', self.language], cwd=ROOT, creationflags=FLAGS,
+                             stdout=log, stderr=subprocess.STDOUT)
+
+    def start_qq_if_configured(self):
+        try:
+            state = json.loads((ROOT / 'data/state.json').read_text(encoding='utf-8'))
+            if state.get('settings', {}).get('qqMode') == 'public':
+                host_config = ROOT / 'data/public-qq-host/tunnel.yml'
+                host_tray = ROOT / 'public_bot/host_tray.py'
+                pythonw = ROOT / '.venv/Scripts/pythonw.exe'
+                if host_config.is_file() and host_tray.is_file() and pythonw.is_file():
+                    subprocess.Popen([str(pythonw), str(host_tray)], cwd=ROOT,
+                                     creationflags=FLAGS, stdout=subprocess.DEVNULL,
+                                     stderr=subprocess.DEVNULL)
+                return
+        except (OSError, ValueError):
+            pass
+        if not (ROOT / 'data/qq-runtime/official-bot.json').is_file():
+            return
+        script = ROOT / 'qq/start-local-stack.ps1'
+        if script.is_file():
+            subprocess.Popen(['powershell.exe', '-NoProfile', '-NonInteractive',
+                              '-ExecutionPolicy', 'Bypass', '-File', str(script), '-SkipTray'],
+                             cwd=ROOT, creationflags=FLAGS,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    def restart_services(self):
+        self.service.restart()
+        self.start_qq_if_configured()
 
     def work(self, operation):
         if not self.lock.acquire(blocking=False):
@@ -161,6 +203,19 @@ class Tray:
     def quit(self):
         # Stop only this installation's verified service, never arbitrary port owners.
         self.service.stop()
+        qq_stop = ROOT / 'qq/stop-local-stack.ps1'
+        try:
+            public_mode = json.loads((ROOT / 'data/state.json').read_text(encoding='utf-8')).get('settings', {}).get('qqMode') == 'public'
+        except (OSError, ValueError):
+            public_mode = False
+        if qq_stop.is_file() and not public_mode:
+            try:
+                subprocess.run(['powershell.exe', '-NoProfile', '-NonInteractive',
+                                '-ExecutionPolicy', 'Bypass', '-File', str(qq_stop)],
+                               cwd=ROOT, creationflags=FLAGS, timeout=20, check=True)
+            except (OSError, subprocess.SubprocessError) as error:
+                with (ROOT / 'data/tray-error.log').open('a', encoding='utf-8') as log:
+                    log.write(f'{time.ctime()}: QQ stop: {error}\n')
         kernel = windows_kernel()
         event = kernel.OpenEventW(2, False, 'Local\\ZZZQueueDesktopStop-' + self.service.instance)
         if event:
@@ -171,12 +226,15 @@ class Tray:
 
     def setup(self, icon):
         icon.visible = True
+        icon.notify(self.t('排队助手已启动，图标位于任务栏通知区域。',
+                           'Queue assistant is running in the system tray.'), 'ZZZ Queue')
         def start():
             if '--restart' in sys.argv:
                 self.service.restart()
             else:
                 self.service.start()
             self.open('/')
+            self.start_qq_if_configured()
         self.work(start)
         def monitor():
             kernel = windows_kernel()
@@ -187,7 +245,11 @@ class Tray:
                     pending_restart = True
                 if self.show_event and kernel.WaitForSingleObject(self.show_event, 0) == 0:
                     pending_show = True
-                if pending_restart and self.work(self.service.restart):
+                if self.attention_event and kernel.WaitForSingleObject(self.attention_event, 0) == 0:
+                    icon.visible = True
+                    icon.notify(self.t('排队助手已在运行，正在打开控制台。',
+                                       'Queue assistant is already running; opening dashboard.'), 'ZZZ Queue')
+                if pending_restart and self.work(self.restart_services):
                     pending_restart = False
                 if pending_show and not self.lock.locked():
                     def ensure_open():
@@ -240,20 +302,29 @@ def main():
     service = Service()
     restart_event = kernel.CreateEventW(None, False, False, 'Local\\ZZZQueueRestart-' + service.instance)
     show_event = kernel.CreateEventW(None, False, False, 'Local\\ZZZQueueShow-' + service.instance)
-    if not restart_event or not show_event:
+    attention_event = kernel.CreateEventW(None, False, False, 'Local\\ZZZQueueAttention-' + service.instance)
+    if not restart_event or not show_event or not attention_event:
         raise ctypes.WinError(ctypes.get_last_error())
     mutex = kernel.CreateMutexW(None, False, 'Local\\ZZZQueueTray-' + service.instance)
     if not mutex:
         raise ctypes.WinError(ctypes.get_last_error())
     try:
         if ctypes.get_last_error() == 183:
-            kernel.SetEvent(restart_event if '--restart' in sys.argv else show_event)
+            if '--restart' in sys.argv:
+                kernel.SetEvent(restart_event)
+            else:
+                kernel.SetEvent(attention_event)
+                # Do not rely solely on the older tray's event loop. A second
+                # double-click must bring the dashboard up immediately.
+                if not open_dashboard(service):
+                    kernel.SetEvent(show_event)
             return
-        Tray(restart_event, show_event).run()
+        Tray(restart_event, show_event, attention_event).run()
     finally:
         kernel.CloseHandle(mutex)
         kernel.CloseHandle(restart_event)
         kernel.CloseHandle(show_event)
+        kernel.CloseHandle(attention_event)
 
 
 if __name__ == '__main__':

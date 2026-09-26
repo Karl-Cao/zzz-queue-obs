@@ -1,0 +1,7 @@
+qq.zenlesszonezero.fans {
+    @public_api path /health /client/*
+    handle @public_api {
+        reverse_proxy 127.0.0.1:8787
+    }
+    respond "Not Found" 404
+}

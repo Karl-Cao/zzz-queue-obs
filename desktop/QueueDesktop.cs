@@ -18,7 +18,7 @@ public sealed class QueueDesktop : Form {
  readonly JavaScriptSerializer json=new JavaScriptSerializer();
  readonly Timer timer=new Timer(); readonly NotifyIcon tray=new NotifyIcon();
  readonly Label heading=new Label(), status=new Label(), currentView=new Label();
- static bool English; static string Instance, IconPath; readonly System.Threading.EventWaitHandle stopEvent = new System.Threading.EventWaitHandle(false, System.Threading.EventResetMode.ManualReset, "Local\\ZZZQueueDesktopStop-" + Instance);
+ static bool English; static string Instance, IconPath; readonly System.Threading.EventWaitHandle stopEvent = new System.Threading.EventWaitHandle(false, System.Threading.EventResetMode.ManualReset, "Local\\ZZZQueueDesktopStop-" + Instance); readonly System.Threading.EventWaitHandle showEvent = new System.Threading.EventWaitHandle(false, System.Threading.EventResetMode.AutoReset, "Local\\ZZZQueueDesktopShow-" + Instance);
  static string T(string zh,string en){return English?en:zh;} readonly FlowLayoutPanel rows=new FlowLayoutPanel(), actions=new FlowLayoutPanel();
  readonly Color acid=Color.FromArgb(233,250,55), dark=Color.FromArgb(25,27,22);
  readonly TextBox chatView=new TextBox();
@@ -39,9 +39,9 @@ public sealed class QueueDesktop : Form {
   AddButton(actions,T("语音测试","Voice test"),()=>Post(new{},"/api/speech/test"));AddButton(actions,T("控制台","Dashboard"),()=>System.Diagnostics.Process.Start(baseUrl+"/live"));
   var menu=new ContextMenuStrip();menu.Items.Add(T("切换操作 / 穿透 (Ctrl+Alt+Q)","Toggle controls / click-through (Ctrl+Alt+Q)"),null,(s,e)=>Toggle());menu.Items.Add(T("显示 / 隐藏 (Ctrl+Alt+H)","Show / hide (Ctrl+Alt+H)"),null,(s,e)=>{Visible=!Visible;});menu.Items.Add(T("退出悬浮窗","Exit overlay"),null,(s,e)=>Close());
   if(System.IO.File.Exists(IconPath))Icon=new Icon(IconPath); tray.Icon=Icon;tray.Text=T("ZZZ Queue · Ctrl+Alt+Q 操作","ZZZ Queue · Ctrl+Alt+Q controls");tray.ContextMenuStrip=menu;tray.Visible=true;tray.DoubleClick+=(s,e)=>Toggle();
-  stopEvent.Reset(); timer.Interval=1000;timer.Tick+=(s,e)=>{if(stopEvent.WaitOne(0))Close();else Poll();};
-  Shown+=(s,e)=>{bool q=RegisterHotKey(Handle,1,0x4003,(uint)Keys.Q);bool h=RegisterHotKey(Handle,2,0x4003,(uint)Keys.H);SetMode();if(!q||!h){tray.ShowBalloonTip(6000,T("快捷键已占用","Shortcut unavailable"),T("可右键系统托盘图标切换操作模式。","Right-click the tray icon to toggle controls."),ToolTipIcon.Warning);}timer.Start();Poll();};
-  FormClosed+=(s,e)=>{timer.Stop();timer.Dispose();UnregisterHotKey(Handle,1);UnregisterHotKey(Handle,2);tray.Dispose();http.Dispose();stopEvent.Dispose();};
+  stopEvent.Reset(); timer.Interval=1000;timer.Tick+=(s,e)=>{if(stopEvent.WaitOne(0))Close();else {if(showEvent.WaitOne(0)){Visible=true;WindowState=FormWindowState.Normal;TopMost=true;Activate();tray.Visible=true;tray.ShowBalloonTip(3000,T("悬浮窗已显示","Overlay shown"),T("悬浮窗图标位于任务栏通知区域。","Overlay icon is in the system tray."),ToolTipIcon.Info);}Poll();}};
+  Shown+=(s,e)=>{bool q=RegisterHotKey(Handle,1,0x4003,(uint)Keys.Q);bool h=RegisterHotKey(Handle,2,0x4003,(uint)Keys.H);SetMode();if(!q||!h){tray.ShowBalloonTip(6000,T("快捷键已占用","Shortcut unavailable"),T("可右键系统托盘图标切换操作模式。","Right-click the tray icon to toggle controls."),ToolTipIcon.Warning);}else{tray.ShowBalloonTip(3000,T("悬浮窗已启动","Overlay running"),T("图标位于任务栏通知区域。","Icon is in the system tray."),ToolTipIcon.Info);}timer.Start();Poll();};
+  FormClosed+=(s,e)=>{timer.Stop();timer.Dispose();UnregisterHotKey(Handle,1);UnregisterHotKey(Handle,2);tray.Dispose();http.Dispose();stopEvent.Dispose();showEvent.Dispose();};
  }
  protected override bool ShowWithoutActivation{get{return true;}}
  protected override CreateParams CreateParams{get{var p=base.CreateParams;p.ExStyle|=0x80000|0x20|0x08000000|0x80;return p;}}

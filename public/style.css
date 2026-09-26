@@ -46,3 +46,11 @@ body.chat-overlay{overflow:hidden;background:transparent}body.chat-overlay #app{
 @media(max-width:400px){.row{gap:8px}.row .rank{width:28px}.row .who{min-width:0}.row .danger{padding:8px}.queue-metrics{gap:5px}.queue-metrics .money,.wait-badge{font-size:13px;padding:4px 6px}}
 
 .guard-badge{display:inline-block;font-size:11px;line-height:16px;padding:0 4px;border-radius:3px;color:#fff;background:#654477;vertical-align:middle;font-weight:700}
+.pending-packet{border-left:4px solid #cf8b23;opacity:.85}
+.pending-badge{font-size:11px;color:#ffc967;grid-column:3;grid-row:1}
+.packet-review-item{padding:14px 0;border-bottom:1px solid #66717a}
+.packet-review-item strong,.packet-review-item small{display:block}
+.packet-review-item input{max-width:180px}
+
+.setting-example { display:block; margin-top:8px; line-height:1.65; color:#cbd5e1; font-weight:normal; }
+.setting-example code { color:#ffe49a; overflow-wrap:anywhere; }

@@ -15,8 +15,9 @@ async function stopOwned(runtime){
   if(!runtime?.pid||!alive(runtime.pid))return;
   if(process.platform!=='win32')throw Error('Old process is still running');
   await new Promise((resolve,reject)=>{
-    const child=spawn('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',root+'scripts/stop-owned.ps1','-ProcessId',String(runtime.pid),'-NodePath',process.execPath,'-EntryPath',root+'server/index.mjs'],{windowsHide:true,stdio:'ignore'});
-    child.once('error',reject);child.once('exit',code=>code===0?resolve():reject(Error('Unable to stop old service / 无法停止旧服务')));
+    const child=spawn('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',root+'scripts/stop-owned.ps1','-ProcessId',String(runtime.pid),'-NodePath',process.execPath,'-EntryPath',root+'server/index.mjs'],{windowsHide:true,stdio:['ignore','ignore','pipe']});
+    let diagnostic='';child.stderr.on('data',chunk=>{diagnostic=(diagnostic+chunk).slice(-1500);});
+    child.once('error',reject);child.once('exit',code=>code===0?resolve():reject(Error(`Unable to stop old service / 无法停止旧服务: ${diagnostic.trim()}`)));
   });
 }
 const unlock=await launcherLock(instance);

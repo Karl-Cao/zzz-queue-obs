@@ -4,6 +4,7 @@ runtime/
 vendor/
 release-assets/
 releases/
+test-builds/
 BLIVECHAT-TRIAL.md
 try-blivechat.cmd
 .env
@@ -11,3 +12,5 @@ try-blivechat.cmd
 .venv/
 __pycache__/
 *.pyc
+qq/gsuid_queue/settings.json
+qq/runtime/

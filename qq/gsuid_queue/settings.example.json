@@ -1,0 +1,5 @@
+{
+  "group_id": "123456789",
+  "queue_url": "http://127.0.0.1:3667/api/qq/message",
+  "token": "从直播电脑控制台复制 QQ 接入令牌"
+}

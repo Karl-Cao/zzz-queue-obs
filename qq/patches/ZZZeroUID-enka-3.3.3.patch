@@ -1,0 +1,133 @@
+diff --git a/ZZZeroUID/utils/enka_to_mys.py b/ZZZeroUID/utils/enka_to_mys.py
+index d21258e..51b22fd 100644
+--- a/ZZZeroUID/utils/enka_to_mys.py
++++ b/ZZZeroUID/utils/enka_to_mys.py
+@@ -41,6 +41,7 @@ ID_TO_PROP_NAME = {
+     "31803": "雷属性伤害加成",
+     "31903": "以太属性伤害加成",
+     "32003": "风属性伤害加成",
++    "32303": "风属性伤害加成",
+ }
+ 
+ ID_TO_EN = {
+@@ -75,6 +76,7 @@ ID_TO_EN = {
+     "31803": "ThunderDmgBonus",
+     "31903": "EtherDmgBonus",
+     "32003": "WindDmgBonus",
++    "32303": "WindDmgBonus",
+ }
+ ELEMENT_TO_EN = {
+     "203": "Thunder",
+@@ -99,6 +101,7 @@ PERCENT_ID = [
+     "31703",
+     "31803",
+     "31903",
++    "32303",
+ ]
+ 
+ PERCENT_NAME = [
+@@ -142,6 +145,7 @@ MAIN_PROP_VALUE = {
+     "31803": 450,
+     "31903": 450,
+     "32003": 450,
++    "32303": 450,
+ }
+ 
+ MYS_NAME_TO_ID = {
+@@ -213,15 +217,24 @@ def _determine_weapon_star_tier(level):
+ def render_weapon_detail(weapon: Dict, current_level: int, star_tier: str):
+     # 基础属性计算
+     base_value = weapon["props_value"]
++    level_rate = weapon["level"][str(current_level)]
++    star_rate = weapon["stars"][star_tier]
+     base_value = (
+         base_value
+-        + base_value * (weapon["level"][str(current_level)]["Rate"] + weapon["stars"][star_tier]["StarRate"]) / 10000
++        + base_value
++        * (
++            level_rate.get("Rate", level_rate.get("rate", 0))
++            + star_rate.get("StarRate", star_rate.get("star_rate", 0))
++        )
++        / 10000
+     )
+ 
+     # 随机属性计算
+     rand_value = weapon["rand_props_value"]
+     if rand_value:
+-        rand_value = rand_value + rand_value * (weapon["stars"][star_tier]["RandRate"] / 10000)
++        rand_value = rand_value + rand_value * (
++            star_rate.get("RandRate", star_rate.get("rand_rate", 0)) / 10000
++        )
+ 
+     return int(base_value), int(rand_value) if rand_value else rand_value
+ 
+@@ -267,11 +280,19 @@ def _calculate_base_stat(
+ 
+     act = str(act)
+ 
+-    if act in level_data and level_key in level_data[act]:
+-        base_value += level_data[act][level_key]
++    level_stat_key = {"HpMax": "hp_max", "Attack": "attack", "Defence": "defence"}.get(
++        level_key, level_key
++    )
++    if act in level_data:
++        base_value += level_data[act].get(
++            level_key, level_data[act].get(level_stat_key, 0)
++        )
+ 
+     if level > 10 and extra_key:
+-        base_value += extra_level[act]["Extra"].get(extra_key, {}).get("Value", 0)
++        extra = extra_level.get(act, {})
++        extra_stats = extra.get("Extra", extra.get("extra", {}))
++        extra_stat = extra_stats.get(str(extra_key), {})
++        base_value += extra_stat.get("Value", extra_stat.get("value", 0))
+ 
+     return math.floor(base_value)
+ 
+@@ -302,10 +323,10 @@ async def _enka_data_to_mys_data(enka_data: Dict) -> List[ZZZAvatarInfo]:
+         result["name_mi18n"] = _partener["name"]
+         result["full_name_mi18n"] = _partener["full_name"]
+ 
+-        result["element_type"] = int(_partener["ElementType"])
+-        result["avatar_profession"] = int(_partener["WeaponType"])
+-        result["rarity"] = _partener["Rarity"]
+-        result["camp_name_mi18n"] = _partener["Camp"]
++        result["element_type"] = int(_partener["element_type"])
++        result["avatar_profession"] = int(_partener["weapon_type"])
++        result["rarity"] = _partener["rarity"]
++        result["camp_name_mi18n"] = _partener["camp"]
+ 
+         # 基础属性
+         props = {}
+@@ -332,8 +353,8 @@ async def _enka_data_to_mys_data(enka_data: Dict) -> List[ZZZAvatarInfo]:
+                     "Attack": _partener["AttackGrowth"],
+                     "Defence": _partener["DefenceGrowth"],
+                 }.get(_prop, 0),
+-                _partener["Level"],
+-                _partener["ExtraLevel"],
++                _partener["level"],
++                _partener["extra_level"],
+                 char["Level"],
+                 char["PromotionLevel"],
+                 _prop,
+@@ -461,8 +482,9 @@ async def _enka_data_to_mys_data(enka_data: Dict) -> List[ZZZAvatarInfo]:
+                 "base": (f"{round(base) / 100}%" if _weapon["props_id"] in PERCENT_ID else str(base)),
+             }
+         ]
+-        weapon["talent_title"] = _weapon["talents"][str(weapon["star"])]["Name"]
+-        weapon["talent_content"] = _weapon["talents"][str(weapon["star"])]["Desc"]
++        talent = _weapon["talents"][str(weapon["star"])]
++        weapon["talent_title"] = talent.get("Name", talent.get("name", ""))
++        weapon["talent_content"] = talent.get("Desc", talent.get("desc", ""))
+         props[ID_TO_EN[_weapon["props_id"]]] += base
+         props[ID_TO_EN[_weapon["rand_props_id"]]] += rand
+ 
+@@ -502,7 +524,7 @@ async def _enka_data_to_mys_data(enka_data: Dict) -> List[ZZZAvatarInfo]:
+         del props["SpRecoverBase"]
+         del props["SpRecoverAdd"]
+ 
+-        char_element = ELEMENT_TO_EN[_partener["ElementType"]]
++        char_element = ELEMENT_TO_EN[_partener["element_type"]]
+         for i in ELEMENT_TO_EN.values():
+             if i != char_element:
+                 del props[f"{i}DmgBonus"]

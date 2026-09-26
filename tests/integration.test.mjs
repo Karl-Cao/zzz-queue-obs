@@ -19,7 +19,7 @@ test('服务集成：局域网配对、权限、模拟操作、礼物导入与�
   try {
     await Promise.race([once(child.stdout, 'data'), once(child, 'exit').then(() => { throw Error(errors || 'server exited'); })]);
     const local = await snapshot(base); assert.equal(local.access.local, true); assert.match(local.access.pairingCode, /^\d{8}$/);
-    assert.equal(local.settings.roomId, '');assert.equal(local.runtime.version,'1.10.0');assert.ok(local.runtime.directory);assert.equal((await (await fetch(base+'/api/state')).json()).runtime,undefined);
+    assert.equal(local.settings.roomId, '');assert.equal(local.runtime.version,JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8')).version);assert.ok(local.runtime.directory);assert.equal((await (await fetch(base+'/api/state')).json()).runtime,undefined);
     const copies=await (await fetch(base+'/api/instances')).json();assert.ok(Array.isArray(copies.instances));assert.ok(copies.instances.every(x=>x.port!==port));
     await fetch(base + '/api/action', {method:'POST',headers:{Origin:base,'Content-Type':'application/json'},body:JSON.stringify({type:'settings',settings:{roomId:'446277'}})});
     const address = interfaces()[0]?.address;
@@ -31,7 +31,7 @@ test('服务集成：局域网配对、权限、模拟操作、礼物导入与�
       assert.equal((await fetch(remote + '/api/action', { method: 'POST', headers, body: '{"type":"call"}' })).status, 401);
       const paired = await fetch(remote + '/api/login', { method: 'POST', headers, body: JSON.stringify({ code: local.access.pairingCode }) });
       assert.equal(paired.status, 200); headers.Cookie = paired.headers.get('set-cookie').split(';')[0];
-      const phone = await snapshot(remote, headers); assert.equal(phone.access.local, false);assert.equal(phone.runtime.directory,undefined); assert.ok(!phone.access.pairingCode); assert.ok(!('bridgeToken' in phone.settings));
+      const phone = await snapshot(remote, headers); assert.equal(phone.access.local, false);assert.equal(phone.runtime.directory,undefined); assert.ok(!phone.access.pairingCode); assert.ok(!('bridgeToken' in phone.settings));assert.ok(!('qqToken' in phone.settings));
       const mock = await fetch(remote + '/api/mock', { method: 'POST', headers, body: JSON.stringify({ type: 'gift', uid: 'test', username: '测试', priceNormalized: 2, roomId: '446277', id: 'http-test' }) });
       assert.equal(mock.status, 200); const after = await snapshot(base); assert.equal(after.queue[0].cents, 200); assert.equal(after.chat[0].username,'测试');
       assert.equal((await fetch(remote + '/api/action', { method: 'POST', headers: { ...headers, Origin: 'http://evil.example' }, body: '{"type":"call"}' })).status, 403);
@@ -49,6 +49,27 @@ test('服务集成：局域网配对、权限、模拟操作、礼物导入与�
     await fetch(base+'/api/action',{method:'POST',headers,body:JSON.stringify({type:'settings',settings:{streamChat:false}})});
     assert.equal('chat' in await (await fetch(base+'/api/state')).json(),false);
     assert.ok((await (await fetch(base+'/api/desktop')).json()).chat.some(x=>x.message==='hello'));
+    await fetch(base+'/api/mock',{method:'POST',headers,body:JSON.stringify({type:'message',uid:'chat-test',username:'chat user',message:'排队',roomId:'446277',id:'chat-queue-test'})});
+    const qqToken=(await snapshot(base)).settings.qqToken;
+    assert.ok(qqToken.length>=24);
+    const qqHeaders={'Content-Type':'application/json','X-Queue-QQ-Token':qqToken};
+    const qqMessage={groupId:'168426621',userId:'123456789',messageId:'qq-test-1',name:'chat user',message:'排队'};
+    const qqPost=(message, extra={})=>fetch(base+'/api/qq/message',{method:'POST',headers:{...qqHeaders,...extra},body:JSON.stringify(message)});
+    assert.equal((await qqPost(qqMessage)).status,403);
+    await fetch(base+'/api/action',{method:'POST',headers,body:JSON.stringify({type:'settings',settings:{qqEnabled:true,qqGroupId:'168426621'}})});
+    assert.equal((await qqPost(qqMessage,{'X-Queue-QQ-Token':'wrong'})).status,401);
+    assert.equal((await qqPost({...qqMessage,groupId:'168426622'})).status,400);
+    const joined=await qqPost(qqMessage);assert.equal(joined.status,200);assert.equal((await joined.json()).queued,true);
+    const afterQQ=await snapshot(base);assert.equal(afterQQ.queue.filter(x=>x.username==='chat user').length,1);assert.equal(afterQQ.queue.find(x=>x.username==='chat user').uid,'chat-test');
+    const duplicate=await qqPost(qqMessage);assert.equal((await duplicate.json()).duplicate,true);
+    assert.equal((await snapshot(base)).queue.filter(x=>x.username==='chat user').length,1);
+    const qqOnly={...qqMessage,userId:'987654321',messageId:'qq-test-2',name:'QQ only'};
+    assert.equal((await (await qqPost(qqOnly)).json()).queued,true);
+    assert.equal((await snapshot(base)).queue.find(x=>x.username==='QQ only').uid,'qq:987654321');
+    await fetch(base+'/api/action',{method:'POST',headers,body:JSON.stringify({type:'settings',settings:{freeQueue:false}})});
+    const blocked={...qqMessage,userId:'555555555',messageId:'qq-test-3',name:'No free'};
+    assert.equal((await (await qqPost(blocked)).json()).queued,false);
+    assert.ok(!((await snapshot(base)).queue.some(x=>x.username==='No free')));
 
   } finally { child.kill(); await once(child, 'exit'); }
 });

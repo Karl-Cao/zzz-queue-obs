@@ -1,0 +1,22 @@
+[Unit]
+Description=ZZZ Queue shared official QQ bot
+After=network-online.target zzz-public-qq-relay.service
+Wants=network-online.target
+Requires=zzz-public-qq-relay.service
+
+[Service]
+Type=simple
+User=zzzqueue
+Group=zzzqueue
+WorkingDirectory=/opt/zzz-queue-obs/public_bot
+EnvironmentFile=/etc/zzz-public-qq.env
+ExecStart=/opt/zzz-queue-obs/.venv/bin/python /opt/zzz-queue-obs/public_bot/start_bot.py
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -6,6 +6,10 @@ For the full beginner walkthrough in Chinese, see the [step-by-step user guide](
 
 A Windows portable Bilibili queue, lottery, manual voice calling and click-through chat overlay. No Docker. This is an independent project, not an official HoYoverse, LAPLACE or OBS product.
 
+Optional shared QQ bot support lets streamers pair their local queue with the public bot using a short-lived code. Release packages contain only the streamer client: no bot server, gsuid_core, large art assets, AppSecret, second QQ account, or Docker required. Features include verified Bilibili UID linking, fleet priority, group call announcements, and red-packet claims that the streamer must verify before crediting. See the [setup guide](docs/USER-GUIDE.zh-CN.md).
+
+The test service at `https://qq.zenlesszonezero.fans` currently runs on the author’s PC and goes offline when it is shut down, asleep, or disconnected. Local queue functions remain available. ZZZ queries run on the public host; account login features are still being tested. Operator instructions are in [public_bot/README.md](public_bot/README.md) in the source repository.
+
 ## Install
 
 Choose a package from [Releases](https://github.com/Karl-Cao/zzz-queue-obs/releases/latest) and extract the whole folder. GitHub's automatic Source code archives are not installers.

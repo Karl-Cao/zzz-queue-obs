@@ -1,0 +1,22 @@
+[Unit]
+Description=ZZZ Queue shared QQ relay
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=zzzqueue
+Group=zzzqueue
+WorkingDirectory=/opt/zzz-queue-obs
+EnvironmentFile=/etc/zzz-public-qq.env
+ExecStart=/usr/bin/node /opt/zzz-queue-obs/public_bot/relay-server.mjs
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/zzz-public-qq
+
+[Install]
+WantedBy=multi-user.target
