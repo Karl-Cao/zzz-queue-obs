@@ -18,7 +18,7 @@ from nonebot.log import logger
 from nonebot.rule import Rule
 from commands import normalize_command, is_zzz_command, unsupported_zzz_command
 
-nonebot.init(command_start={"/", ""})
+nonebot.init(command_start={"/"})
 nonebot.get_driver().register_adapter(Adapter)
 if os.environ.get("PUBLIC_QQ_ENABLE_ZZZ") == "1":
     nonebot.load_plugin("GenshinUID")
@@ -90,9 +90,11 @@ group = on_type(GroupAtMessageCreateEvent, priority=5, block=True)
 
 @direct.handle()
 async def bind_direct(bot: Bot, event: C2CMessageCreateEvent) -> None:
+    if not event.get_plaintext().strip().startswith("/"):
+        return
     try:
         result = await asyncio.to_thread(post, "/bot/dm", {
-            "openid": str(event.author.user_openid), "text": normalize_command(event.get_plaintext()),
+            "openid": str(event.author.user_openid), "text": event.get_plaintext().strip(),
         })
         await bot.send(event, result["reply"])
     except Exception:
@@ -101,11 +103,14 @@ async def bind_direct(bot: Bot, event: C2CMessageCreateEvent) -> None:
 
 @group.handle()
 async def handle_group(bot: Bot, event: GroupAtMessageCreateEvent) -> None:
-    content = normalize_command(event.get_plaintext())
+    raw = event.get_plaintext().strip()
+    if not raw.startswith("/"):
+        return
+    content = normalize_command(raw)
     if not content or len(content) > 80:
         return
-    if unsupported_zzz_command(content):
-        await bot.send(event, '当前 ZZZeroUID 版本尚未实现此图鉴功能。角色攻略可使用：zzz角色攻略 安比；完整功能请发 zzz帮助。')
+    if unsupported_zzz_command(raw):
+        await bot.send(event, '当前 ZZZeroUID 版本尚未实现此图鉴功能。角色攻略可使用：/zzz角色攻略 安比；完整功能请发 /zzz帮助。')
         return
     member_openid = str(event.author.member_openid)
     try:
@@ -115,7 +120,7 @@ async def handle_group(bot: Bot, event: GroupAtMessageCreateEvent) -> None:
             "memberOpenId": member_openid,
             "name": (getattr(event.author, "username", None) or f"QQ用户{member_openid[:6]}").strip(),
             "messageId": hashlib.sha256(str(event.id).encode("utf-8")).hexdigest(),
-            "text": content,
+            "text": raw,
         })
         if result.get("reply"):
             await bot.send(event, result["reply"])

@@ -228,7 +228,7 @@ const server = createServer(async (req, res) => {
           if (url.pathname === '/api/mock') ingest(a,true); else action(s, a); if (s.settings.roomId !== previousRoom) chat.clear();
         });
         if(guardSyncEnabled&&s.settings.roomId!==previousRoom)void syncGuards(true).catch(console.error);
-        if (url.pathname === '/api/action' && ['advance','call'].includes(a.type) && s.announcement?.id !== previousAnnouncement && s.current && s.settings.qqMode === 'public' && s.settings.qqGroupOpenId) {
+        if (url.pathname === '/api/action' && ['advance','select-call','call'].includes(a.type) && s.announcement?.id !== previousAnnouncement && s.current && s.settings.qqMode === 'public' && s.settings.qqGroupOpenId) {
           void publicQQ.announce(s.announcement, s.current).catch(error => console.error(`QQ群叫号未发送：${error.message}`));
         }
         if (!clientOnly && url.pathname === '/api/action' && a.type === 'settings') await syncQQConfig(directory, s.settings, port);

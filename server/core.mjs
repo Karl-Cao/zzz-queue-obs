@@ -89,7 +89,14 @@ export function action(s,a) {
  if(a.type==='red-reject'){rejectRedPacket(s,a.id);return;}
  if(a.type==='undo'){
   const u=s.undo;if(!u||a.id!==u.id||Date.now()>u.expiresAt)throw Error('Undo expired / 撤销已过期');
-  if(u.type==='advance'){
+  if(u.type==='select-call'){
+   if((s.current?.uid||null)!==(u.next?.uid||null))throw Error('Queue changed; cannot undo / 队列已变化，无法撤销');
+   const previous=u.item?s.queue.find(x=>x.uid===u.item.uid):null;
+   if(u.item&&!previous)throw Error('Queue changed; cannot undo / 队列已变化，无法撤销');
+   const returned={...s.current};delete returned.calledAt;
+   if(previous)s.queue=s.queue.filter(x=>x!==previous);
+   restore(s,returned);s.current=previous?{...previous,...(u.item.calledAt?{calledAt:u.item.calledAt}:{})}:null;s.announcement=null;
+  }else if(u.type==='advance'){
    if((s.current?.uid||null)!==(u.next?.uid||null)||u.item&&s.queue.some(x=>x.uid===u.item.uid))throw Error('Queue changed; cannot undo / 队列已变化，无法撤销');
    restore(s,s.current);s.current=u.item;s.announcement=null;
   }else restore(s,u.item);
@@ -120,11 +127,14 @@ export function action(s,a) {
   if(next.qqGroupId!==s.settings.qqGroupId)next.qqGroupOpenId='';
   next.command=next.command.trim();next.lotteryPhrase=next.lotteryPhrase.trim();s.settings=next;
  }else if(a.type==='remove')change(s,()=>{const item=s.queue.find(x=>x.uid===a.uid);if(item){remember(s,'remove',item);s.history.unshift({...item,operationId:s.undo.id,removedAt:Date.now()});s.history=s.history.slice(0,100);s.queue=s.queue.filter(x=>x!==item);}});
- else if(a.type==='advance') {
-  const next=sorted(s)[0]||null;
-  if((a.currentUid??null)!==(s.current?.uid??null)||(a.nextUid??null)!==(next?.uid??null))throw Error('Queue changed. Please retry / 队列已变化，请重试');
-  remember(s,'advance',s.current,next);
-  if(s.current){s.history.unshift({...s.current,operationId:s.undo.id,removedAt:Date.now()});s.history=s.history.slice(0,100);}
+ else if(a.type==='advance'||a.type==='select-call') {
+  const selected=a.type==='select-call';
+  const next=selected?s.queue.find(x=>x.uid===a.uid):sorted(s)[0]||null;
+  if(selected&&!next)throw Error('Viewer is no longer in queue / 该观众已不在等待队列');
+  if((a.currentUid??null)!==(s.current?.uid??null)||(!selected&&(a.nextUid??null)!==(next?.uid??null)))throw Error('Queue changed. Please retry / 队列已变化，请重试');
+  remember(s,selected?'select-call':'advance',s.current,next);
+  if(selected&&s.current){const returned={...s.current};delete returned.calledAt;restore(s,returned);}
+  if(!selected&&s.current){s.history.unshift({...s.current,operationId:s.undo.id,removedAt:Date.now()});s.history=s.history.slice(0,100);}
   s.current=next?{...next,calledAt:Date.now()}:null;
   if(next)s.queue=s.queue.filter(x=>x.uid!==next.uid);
   s.announcement=null;call(s);

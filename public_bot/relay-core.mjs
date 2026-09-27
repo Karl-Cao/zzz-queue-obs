@@ -151,23 +151,7 @@ export class PublicRelay {
     await this.save();
   }
 
-  async viewerBinding(groupOpenId, memberOpenId, command) {
-    const client = [...this.clients.values()].find(item => item.groupOpenId === groupOpenId);
-    if (!client) fail('此群尚未绑定主播排队助手');
-    if (!idPattern.test(memberOpenId || '')) fail('QQ 身份无效');
-    client.members ||= [];
-    let member = client.members.find(item => item.openid === memberOpenId);
-    if (!member) { member = { openid: memberOpenId, name: `QQ用户${memberOpenId.slice(0, 6)}` }; client.members.push(member); }
-    if (command === '查看绑定') return member.bilibiliName ? `当前绑定的 Bilibili 昵称：${member.bilibiliName}` : '尚未绑定。请发送：@机器人 绑定B站 你的Bilibili昵称';
-    if (command === '解绑B站') { delete member.bilibiliName; await this.save(); return '已解除本群的 Bilibili 昵称绑定。'; }
-    const name = command === '绑定B站' ? '' : command.replace(/^绑定B站\s+/, '').trim();
-    if (!name || name.length > 40 || /[\x00-\x1f]/.test(name)) fail('请发送：@机器人 绑定B站 你的Bilibili昵称（最多40字）');
-    const normalized = name.normalize('NFKC').toLocaleLowerCase();
-    if (client.members.some(item => item.openid !== memberOpenId && item.bilibiliName?.normalize('NFKC').toLocaleLowerCase() === normalized)) fail('这个 Bilibili 昵称已被本群其他成员绑定，请联系主播核实');
-    member.bilibiliName = name;
-    await this.save();
-    return `已绑定 Bilibili 昵称：${name}。以后在本群 @机器人 排队即可，无需修改群昵称。此绑定为本人填写，未验证B站账号所有权。`;
-  }
+  async viewerBinding() { fail('昵称绑定已取消。请发送：@机器人 /绑定B站 你的B站UID'); }
 
   async announce(id, token, { announcementId, uid, name, text }, sendCall) {
     const client = this.authenticated(id, token);
@@ -182,8 +166,8 @@ export class PublicRelay {
     const direct = /^qq:([A-Za-z0-9_-]{5,128})$/.exec(String(uid || ''))?.[1];
     const directMember = direct && members.find(member => member.openid === direct);
     const normalized = cleanName.normalize('NFKC').toLocaleLowerCase();
-    const boundMatches = members.filter(member => member.bilibiliName?.normalize('NFKC').toLocaleLowerCase() === normalized);
-    const matches = boundMatches.length ? boundMatches : members.filter(member => !member.bilibiliName && member.name.normalize('NFKC').toLocaleLowerCase() === normalized);
+    const boundMatches = members.filter(member => (member.bilibiliUid ? member.bilibiliName : undefined)?.normalize('NFKC').toLocaleLowerCase() === normalized);
+    const matches = boundMatches.length ? boundMatches : members.filter(member => !member.bilibiliUid && member.name.normalize('NFKC').toLocaleLowerCase() === normalized);
     const memberOpenId = directMember?.openid || (matches.length === 1 ? matches[0].openid : '');
     const verifiedMember=members.find(member=>member.bilibiliUid===String(uid||''));
     const resolvedMember=verifiedMember?.openid||memberOpenId;
@@ -234,7 +218,8 @@ export class PublicRelay {
     if (!idPattern.test(memberOpenId || '') || !messageId || String(messageId).length > 512) return { error: 'QQ 消息标识无效' };
     const id = hash(`${groupOpenId}:${messageId}`);
     if (this.pending.has(id)) return { error: '消息正在处理，请稍后查看名单' };
-    const boundName = client.members?.find(item => item.openid === memberOpenId)?.bilibiliName;
+    const boundMember = client.members?.find(item => item.openid === memberOpenId);
+    const boundName = boundMember?.bilibiliUid ? boundMember.bilibiliName : undefined;
     const event = { id, groupOpenId, memberOpenId,qqName:String(name||'').slice(0,80), name: boundName || String(name || '').slice(0, 80) || `QQ用户${memberOpenId.slice(0, 6)}`, message: String(message || '').slice(0, 80), expiresAt: this.now() + this.deliveryTimeoutMs };
     return new Promise(resolve => {
       const timer = setTimeout(() => { this.pending.delete(id); resolve({ error: '主播排队助手暂未响应' }); }, this.deliveryTimeoutMs);

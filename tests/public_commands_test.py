@@ -8,7 +8,7 @@ class CommandPanelTest(unittest.TestCase):
     def test_panel_and_typed_queries_keep_arguments(self):
         for text in ['zzz角色图鉴 零号安比','zzz角色攻略 安比']:
             self.assertTrue(is_zzz_command('/'+text))
-            self.assertTrue(is_zzz_command(text))
+            self.assertFalse(is_zzz_command(text))
             self.assertEqual(normalize_command(' /'+text+' '),text)
         self.assertFalse(is_zzz_command('/排队'))
         self.assertFalse(is_zzz_command('/绑定B站 用户'))

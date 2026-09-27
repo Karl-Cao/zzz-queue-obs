@@ -54,3 +54,5 @@ body.chat-overlay{overflow:hidden;background:transparent}body.chat-overlay #app{
 
 .setting-example { display:block; margin-top:8px; line-height:1.65; color:#cbd5e1; font-weight:normal; }
 .setting-example code { color:#ffe49a; overflow-wrap:anywhere; }
+
+.row-actions { display:flex; flex-direction:column; gap:5px; flex-shrink:0; }

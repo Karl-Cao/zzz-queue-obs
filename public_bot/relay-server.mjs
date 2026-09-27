@@ -30,12 +30,14 @@ export async function createRelayServer({ relay = new PublicRelay(directory), bo
       const bearer = /^Bearer (\S+)$/.exec(req.headers.authorization || '')?.[1] || '';
       if (url.pathname.startsWith('/bot/')) {
         if (!botSecret || bearer !== botSecret || !['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress)) { send(403, { error: 'Bot only' }); return; }
-        const content = String(input.text || '').trim().replace(/^\/\s*/, '');
+        const raw = String(input.text || '').trim();
+        if (!raw.startsWith('/')) { send(200, { reply: null }); return; }
+        const content = raw.replace(/^\/\s*/, '');
         if (url.pathname === '/bot/dm') {
           const code = /^绑定\s+([A-Z2-9]{10})$/i.exec(content)?.[1]?.toUpperCase();
-          if (!code) { send(200, { reply: '请在排队助手生成绑定码，再私聊发送：绑定 绑定码' }); return; }
+          if (!code) { send(200, { reply: '请在排队助手生成绑定码，再私聊发送：/绑定 绑定码' }); return; }
           await relay.bindOwner(String(input.openid || ''), code);
-          send(200, { reply: '私聊身份已确认。请在目标群真正 @机器人发送：绑定群 ' + code }); return;
+          send(200, { reply: '私聊身份已确认。请在目标群真正 @机器人发送：/绑定群 ' + code }); return;
         }
         if (url.pathname === '/bot/group') {
           const groupOpenId = String(input.groupOpenId || '');
@@ -51,7 +53,7 @@ export async function createRelayServer({ relay = new PublicRelay(directory), bo
             send(200,{reply:result.error||result.reply||'主播排队助手版本过旧，请更新后使用 UID 验证绑定。'}); return;
           }
           if (/^绑定B站(?:\s|$)/.test(content) || ['查看绑定', '解绑B站'].includes(content)) {
-            send(200, { reply: await relay.viewerBinding(groupOpenId, String(input.memberOpenId || ''), content) }); return;
+            send(200, { reply: '请发送：@机器人 /绑定B站 你的B站UID（纯数字用户码，不是昵称或直播间号），例如：/绑定B站 12345678。之后按提示到主播直播间验证。' }); return;
           }
           if (/^zzz/i.test(content)) { send(200, { reply: null }); return; }
           const result = await relay.queue(groupOpenId, String(input.memberOpenId || ''), input.name, String(input.messageId || ''), content);

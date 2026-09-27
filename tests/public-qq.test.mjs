@@ -34,23 +34,30 @@ test('shared bot binds two streamers and routes each group to the right local qu
   try {
     const pairA = await a.pair(url), pairB = await b.pair(url);
     assert.match(pairA.code, /^[A-Z2-9]{10}$/);
-    assert.equal((await bot('group', { groupOpenId: 'group-A', text: `绑定群 ${pairA.code}` })).status, 404);
-    assert.match((await bot('dm', { openid: 'owner-A', text: `绑定 ${pairA.code}` })).reply, /已确认/);
-    assert.match((await bot('dm', { openid: 'owner-B', text: `绑定 ${pairB.code}` })).reply, /已确认/);
-    assert.equal((await bot('group', { groupOpenId: 'group-A', groupId: '168426621', text: `绑定群 ${pairA.code}` })).status, 200);
-    assert.equal((await bot('group', { groupOpenId: 'group-B', groupId: '927643163', text: `绑定群 ${pairB.code}` })).status, 200);
+    assert.equal((await bot('group', { groupOpenId: 'group-A', text: `/绑定群 ${pairA.code}` })).status, 404);
+    assert.match((await bot('dm', { openid: 'owner-A', text: `/绑定 ${pairA.code}` })).reply, /已确认/);
+    assert.match((await bot('dm', { openid: 'owner-B', text: `/绑定 ${pairB.code}` })).reply, /已确认/);
+    assert.equal((await bot('group', { groupOpenId: 'group-A', groupId: '168426621', text: `/绑定群 ${pairA.code}` })).status, 200);
+    assert.equal((await bot('group', { groupOpenId: 'group-B', groupId: '927643163', text: `/绑定群 ${pairB.code}` })).status, 200);
     assert.equal((await a.status()).pendingGroup.openid, 'group-A');
     await a.confirmGroup('group-A');
     await b.confirmGroup('group-B');
     await waitFor(() => relay.clients.get(a.config.id).lastPollAt && relay.clients.get(b.config.id).lastPollAt);
-    const first = await bot('group', { groupOpenId: 'group-A', memberOpenId: 'member-A', name: '观众A', messageId: 'message-A', text: '排队' });
-    const second = await bot('group', { groupOpenId: 'group-B', memberOpenId: 'member-B', name: '观众B', messageId: 'message-B', text: '排队' });
+    assert.equal((await bot('group', {groupOpenId:'group-A',memberOpenId:'member-A',text:'排队'})).reply,null);
+    assert.equal((await bot('dm', {openid:'owner-A',text:'绑定 ABCDEFGHJK'})).reply,null);
+    for (const text of ['/绑定B站','/绑定B站 小明']) {
+      const invalidBinding=await bot('group',{groupOpenId:'group-A',memberOpenId:'member-A',text});
+      assert.match(invalidBinding.reply,/B站UID.*纯数字/);
+      assert.doesNotMatch(invalidBinding.reply,/你的Bilibili昵称/);
+    }
+    const first = await bot('group', { groupOpenId: 'group-A', memberOpenId: 'member-A', name: '观众A', messageId: 'message-A', text: '/排队' });
+    const second = await bot('group', { groupOpenId: 'group-B', memberOpenId: 'member-B', name: '观众B', messageId: 'message-B', text: '/排队' });
     assert.match(first.reply, /第 1 位/);
     assert.match(second.reply, /第 2 位/);
     assert.deepEqual(receivedA.map(event => event.memberOpenId), ['member-A']);
     assert.deepEqual(receivedB.map(event => event.memberOpenId), ['member-B']);
-    assert.match((await bot('group', { groupOpenId: 'unbound-group', memberOpenId: 'member-C', name: '观众C', messageId: 'message-C', text: '排队' })).reply, /尚未绑定/);
-    assert.equal((await bot('group', { groupOpenId: 'group-A', text: `绑定群 ${pairB.code}` })).status, 404);
+    assert.match((await bot('group', { groupOpenId: 'unbound-group', memberOpenId: 'member-C', name: '观众C', messageId: 'message-C', text: '/排队' })).reply, /尚未绑定/);
+    assert.equal((await bot('group', { groupOpenId: 'group-A', text: `/绑定群 ${pairB.code}` })).status, 404);
     const invalid = await fetch(`${url}/client/status`, { method: 'POST', headers: { 'X-Queue-Client-Id': a.config.id, Authorization: 'Bearer ' + 'b'.repeat(64), 'Content-Type': 'application/json' }, body: '{}' });
     assert.equal(invalid.status, 401);
     a.stop();
@@ -58,7 +65,7 @@ test('shared bot binds two streamers and routes each group to the right local qu
     await reloaded.load();
     assert.equal(reloaded.config.id, a.config.id);
     await waitFor(() => relay.waiters.has(a.config.id));
-    const afterRestart = await bot('group', { groupOpenId: 'group-A', memberOpenId: 'member-D', name: '观众D', messageId: 'message-D', text: '排队' });
+    const afterRestart = await bot('group', { groupOpenId: 'group-A', memberOpenId: 'member-D', name: '观众D', messageId: 'message-D', text: '/排队' });
     assert.match(afterRestart.reply, /第 3 位/);
   } finally {
     a.stop(); b.stop(); reloaded?.stop();
@@ -118,13 +125,13 @@ test('shared bot calls only the bound group and mentions a uniquely known member
     ];
     for (const c of clients) {
       await send('/client/register', { code: c.code }, headers(c.id, c.token));
-      await send('/bot/dm', { openid: c.owner, text: `绑定 ${c.code}` }, { 'Content-Type': 'application/json', Authorization: `Bearer ${botSecret}` });
-      await send('/bot/group', { groupOpenId: c.group, groupId: c.group, text: `绑定群 ${c.code}` }, { 'Content-Type': 'application/json', Authorization: `Bearer ${botSecret}` });
+      await send('/bot/dm', { openid: c.owner, text: `/绑定 ${c.code}` }, { 'Content-Type': 'application/json', Authorization: `Bearer ${botSecret}` });
+      await send('/bot/group', { groupOpenId: c.group, groupId: c.group, text: `/绑定群 ${c.code}` }, { 'Content-Type': 'application/json', Authorization: `Bearer ${botSecret}` });
       await send('/client/confirm-group', { groupOpenId: c.group }, headers(c.id, c.token));
     }
     const botHeaders = { 'Content-Type': 'application/json', Authorization: `Bearer ${botSecret}` };
-    await send('/bot/group', { groupOpenId: 'group-A', memberOpenId: 'member-A', name: '同名观众', messageId: 'seen-A', text: 'zzz帮助' }, botHeaders);
-    await send('/bot/group', { groupOpenId: 'group-B', memberOpenId: 'member-B', name: '同名观众', messageId: 'seen-B', text: 'zzz帮助' }, botHeaders);
+    await send('/bot/group', { groupOpenId: 'group-A', memberOpenId: 'member-A', name: '同名观众', messageId: 'seen-A', text: '/zzz帮助' }, botHeaders);
+    await send('/bot/group', { groupOpenId: 'group-B', memberOpenId: 'member-B', name: '同名观众', messageId: 'seen-B', text: '/zzz帮助' }, botHeaders);
     const first = await send('/client/announce', { announcementId: 'announcement-1', uid: 'bili:123', name: '同名观众' }, headers(clients[0].id, clients[0].token));
     assert.equal(first.mentioned, true);
     assert.deepEqual(calls, [{ groupOpenId: 'group-A', memberOpenId: 'member-A', name: '同名观众', mentioned: true }]);
@@ -133,7 +140,7 @@ test('shared bot calls only the bound group and mentions a uniquely known member
     await send('/client/announce', { announcementId: 'announcement-2', uid: 'qq:member-B', name: '同名观众' }, headers(clients[1].id, clients[1].token));
     assert.equal(calls[1].groupOpenId, 'group-B');
     assert.equal(calls[1].memberOpenId, 'member-B');
-    await send('/bot/group', { groupOpenId: 'group-A', memberOpenId: 'member-A2', name: '同名观众', messageId: 'seen-A2', text: 'zzz帮助' }, botHeaders);
+    await send('/bot/group', { groupOpenId: 'group-A', memberOpenId: 'member-A2', name: '同名观众', messageId: 'seen-A2', text: '/zzz帮助' }, botHeaders);
     const ambiguous = await send('/client/announce', { announcementId: 'announcement-3', uid: 'bili:123', name: '同名观众' }, headers(clients[0].id, clients[0].token));
     assert.equal(ambiguous.mentioned, false);
     assert.equal(calls[2].memberOpenId, '');
@@ -181,14 +188,14 @@ test('public QQ message reaches an isolated local queue with its configured phra
     assert.equal((await post('/api/action', { type: 'settings', settings: { roomId: '446277', qqEnabled: true, qqGroupId: '168426621', command: '我要排队' } })).status, 200);
     const pair = await post('/api/public-qq/pair', { url });
     assert.match(pair.code, /^[A-Z2-9]{10}$/);
-    assert.match((await bot('dm', { openid: 'owner-openid', text: `绑定 ${pair.code}` })).reply, /已确认/);
-    await bot('group', { groupOpenId: 'target-group', groupId: '168426621', text: `绑定群 ${pair.code}` });
+    assert.match((await bot('dm', { openid: 'owner-openid', text: `/绑定 ${pair.code}` })).reply, /已确认/);
+    await bot('group', { groupOpenId: 'target-group', groupId: '168426621', text: `/绑定群 ${pair.code}` });
     assert.equal((await post('/api/public-qq/confirm', { groupOpenId: 'target-group' })).status, 200);
     await waitFor(async () => (await (await fetch(local + '/api/public-qq/status')).json()).groupOpenId === 'target-group');
     await waitFor(() => [...relay.clients.values()].some(client => client.lastPollAt));
-    const ignored = await bot('group', { groupOpenId: 'target-group', memberOpenId: 'member-openid', name: '观众甲', messageId: 'ignored-id', text: '排队' });
+    const ignored = await bot('group', { groupOpenId: 'target-group', memberOpenId: 'member-openid', name: '观众甲', messageId: 'ignored-id', text: '/排队' });
     assert.equal(ignored.reply, null);
-    const joined = await bot('group', { groupOpenId: 'target-group', memberOpenId: 'member-openid', name: '观众甲', messageId: 'join-id', text: '我要排队' });
+    const joined = await bot('group', { groupOpenId: 'target-group', memberOpenId: 'member-openid', name: '观众甲', messageId: 'join-id', text: '/我要排队' });
     assert.match(joined.reply, /第 1 位/);
     const state = await (await fetch(local + '/api/state')).json();
     assert.equal(state.queue.length, 1);
