@@ -114,12 +114,12 @@ export class PublicRelay {
     return { ok: true };
   }
 
-  async confirmGroup(id, token, groupOpenId) {
+  async confirmGroup(id, token, groupOpenId, numericGroupId) {
     const client = this.authenticated(id, token);
     if (!client.pendingGroup || client.pendingGroup.openid !== groupOpenId || this.now() - client.pendingGroup.requestedAt > 5 * 60_000) fail('没有待确认的群绑定', 409);
     if ([...this.clients.values()].some(item => item.id !== id && item.groupOpenId === groupOpenId)) fail('此群已绑定另一位主播', 409);
     client.groupOpenId = groupOpenId;
-    client.numericGroupId = client.pendingGroup.numericId;
+    client.numericGroupId = /^\d{5,15}$/.test(String(numericGroupId||'')) ? String(numericGroupId) : client.pendingGroup.numericId;
     client.pendingGroup = null;
     client.codeHash = '';
     client.codeExpiresAt = 0;
@@ -129,15 +129,27 @@ export class PublicRelay {
 
   async unbind(id, token) {
     const client = this.authenticated(id, token);
-    client.ownerOpenId = '';
-    client.groupOpenId = '';
-    client.numericGroupId = '';
-    client.pendingGroup = null;
-    client.codeHash = '';
-    client.codeExpiresAt = 0;
-    client.members = [];
-    await this.save();
-    return { ok: true };
+    return this.detach(client);
+  }
+
+  async detach(client) {
+    for (const [id,pending] of this.pending) if(pending.clientId===client.id) {
+      clearTimeout(pending.timer);this.pending.delete(id);pending.resolve({error:'群绑定已解除，请重新绑定'});
+    }
+    this.waiters.get(client.id)?.(null);this.waiters.delete(client.id);
+    client.ownerOpenId='';client.groupOpenId='';client.numericGroupId='';
+    client.pendingGroup=null;client.codeHash='';client.codeExpiresAt=0;client.members=[];
+    await this.save();return {ok:true};
+  }
+
+  async unbindOwnerGroup(owner, target='') {
+    if(!idPattern.test(owner||''))fail('私聊身份无效');
+    const owned=[...this.clients.values()].filter(c=>c.ownerOpenId===owner&&(c.groupOpenId||c.pendingGroup));
+    const matches=target?owned.filter(c=>c.numericGroupId===target||c.groupOpenId===target||c.id===target):owned;
+    if(!matches.length)fail('没有找到由你绑定的群；不能解绑其他主播的群');
+    if(matches.length>1)fail('你绑定了多个群，请发送 /解绑群 群号或绑定标识：'+matches.map(c=>c.numericGroupId||c.id).join('、'));
+    await this.detach(matches[0]);
+    return '已解除群与主播助手的绑定。不会删除主播电脑上的排队任务；需要重新生成绑定码才能恢复QQ群排队和叫号。';
   }
 
   async rememberMember(groupOpenId, memberOpenId, name) {
@@ -151,7 +163,7 @@ export class PublicRelay {
     await this.save();
   }
 
-  async viewerBinding() { fail('昵称绑定已取消。请发送：@机器人 /绑定B站 你的B站UID'); }
+  async viewerBinding() { fail('昵称绑定已取消。请发送：@机器人 /绑定B站（无需填写UID）'); }
 
   async announce(id, token, { announcementId, uid, name, text }, sendCall) {
     const client = this.authenticated(id, token);

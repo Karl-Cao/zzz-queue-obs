@@ -34,8 +34,11 @@ export async function createRelayServer({ relay = new PublicRelay(directory), bo
         if (!raw.startsWith('/')) { send(200, { reply: null }); return; }
         const content = raw.replace(/^\/\s*/, '');
         if (url.pathname === '/bot/dm') {
+          const unbind=/^解绑群(?:\s+([A-Za-z0-9_-]{5,128}))?$/.exec(content);
+          if(unbind){send(200,{reply:await relay.unbindOwnerGroup(String(input.openid||''),unbind[1]||'')});return;}
+
           const code = /^绑定\s+([A-Z2-9]{10})$/i.exec(content)?.[1]?.toUpperCase();
-          if (!code) { send(200, { reply: '请在排队助手生成绑定码，再私聊发送：/绑定 绑定码' }); return; }
+          if (!code) { send(200, { reply: '请私聊发送 /解绑群 解除自己的群绑定，或在排队助手生成绑定码后发送 /绑定 绑定码' }); return; }
           await relay.bindOwner(String(input.openid || ''), code);
           send(200, { reply: '私聊身份已确认。请在目标群真正 @机器人发送：/绑定群 ' + code }); return;
         }
@@ -48,12 +51,12 @@ export async function createRelayServer({ relay = new PublicRelay(directory), bo
           }
           if (!content || content.length > 80) { send(200, { reply: null }); return; }
           await relay.rememberMember(groupOpenId, String(input.memberOpenId || ''), input.name);
-          if (/^绑定B站\s+[1-9]\d{0,19}$/.test(content) || ['查看绑定','解绑B站'].includes(content)) {
+          if (/^绑定B站(?:\s+[1-9]\d{0,19})?$/.test(content) || ['查看绑定','解绑B站'].includes(content)) {
             const result=await relay.queue(groupOpenId,String(input.memberOpenId || ''),input.name,String(input.messageId || ''),content);
             send(200,{reply:result.error||result.reply||'主播排队助手版本过旧，请更新后使用 UID 验证绑定。'}); return;
           }
           if (/^绑定B站(?:\s|$)/.test(content) || ['查看绑定', '解绑B站'].includes(content)) {
-            send(200, { reply: '请发送：@机器人 /绑定B站 你的B站UID（纯数字用户码，不是昵称或直播间号），例如：/绑定B站 12345678。之后按提示到主播直播间验证。' }); return;
+            send(200, { reply: '请发送：@机器人 /绑定B站（无需填写UID或昵称），再按提示到主播直播间验证。' }); return;
           }
           if (/^zzz/i.test(content)) { send(200, { reply: null }); return; }
           const result = await relay.queue(groupOpenId, String(input.memberOpenId || ''), input.name, String(input.messageId || ''), content);
@@ -76,7 +79,7 @@ export async function createRelayServer({ relay = new PublicRelay(directory), bo
         send(200, await relay.register({ id, token: bearer, code: input.code })); return;
       }
       if (url.pathname === '/client/status') { send(200, relay.status(id, bearer)); return; }
-      if (url.pathname === '/client/confirm-group') { send(200, await relay.confirmGroup(id, bearer, String(input.groupOpenId || ''))); return; }
+      if (url.pathname === '/client/confirm-group') { send(200, await relay.confirmGroup(id, bearer, String(input.groupOpenId || ''), input.numericGroupId)); return; }
       if (url.pathname === '/client/unbind') { send(200, await relay.unbind(id, bearer)); return; }
       if (url.pathname === '/client/announce') { send(200, await relay.announce(id, bearer, input, sendCall)); return; }
       if (url.pathname === '/client/poll') { send(200, { event: await relay.poll(id, bearer, AbortSignal.timeout(16_000)) }); return; }

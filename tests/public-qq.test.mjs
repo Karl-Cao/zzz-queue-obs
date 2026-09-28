@@ -45,9 +45,9 @@ test('shared bot binds two streamers and routes each group to the right local qu
     await waitFor(() => relay.clients.get(a.config.id).lastPollAt && relay.clients.get(b.config.id).lastPollAt);
     assert.equal((await bot('group', {groupOpenId:'group-A',memberOpenId:'member-A',text:'排队'})).reply,null);
     assert.equal((await bot('dm', {openid:'owner-A',text:'绑定 ABCDEFGHJK'})).reply,null);
-    for (const text of ['/绑定B站','/绑定B站 小明']) {
+    for (const text of ['/绑定B站 小明']) {
       const invalidBinding=await bot('group',{groupOpenId:'group-A',memberOpenId:'member-A',text});
-      assert.match(invalidBinding.reply,/B站UID.*纯数字/);
+      assert.match(invalidBinding.reply,/无需填写UID/);
       assert.doesNotMatch(invalidBinding.reply,/你的Bilibili昵称/);
     }
     const first = await bot('group', { groupOpenId: 'group-A', memberOpenId: 'member-A', name: '观众A', messageId: 'message-A', text: '/排队' });
@@ -207,9 +207,11 @@ test('public QQ message reaches an isolated local queue with its configured phra
     await post('/api/action',{type:'settings',settings:{bridgeUrl:`ws://127.0.0.1:${liveBridge.address().port}`,freeQueue:false,voiceCallTemplate:'Voice {name}',qqCallTemplate:'QQ {name}, ready!'}});
     await waitFor(async()=>(await (await fetch(local+'/api/guards/status')).json()).usable);
     await post('/api/bridge/reconnect',{});await waitFor(()=>Boolean(liveSocket));
-    const bind=await bot('group',{groupOpenId:'target-group',memberOpenId:'verified-member',name:'QQ nickname',messageId:'bind-id',text:'/绑定B站 12345'});
-    const code=/绑定QQ ([A-F0-9]{12})/.exec(bind.reply)?.[1];assert.ok(code);
-    emitLive({type:'message',uid:'12345',username:'Verified viewer',roomId:'446277',message:`绑定QQ ${code}`,guardType:1});
+    const bind=await bot('group',{groupOpenId:'target-group',memberOpenId:'verified-member',name:'QQ nickname',messageId:'bind-id',text:'/绑定B站'});
+    const code=/绑定([0-9]{6})/.exec(bind.reply)?.[1];assert.ok(code);
+    await post('/api/mock',{type:'message',uid:'12345',username:'Verified viewer',roomId:'446277',message:`绑定${code}`});
+    assert.match((await bot('group',{groupOpenId:'target-group',memberOpenId:'verified-member',messageId:'manual-proof-check',text:'/查看绑定'})).reply,/验证尚未完成/);
+    emitLive({type:'message',uid:'12345',username:'Verified viewer',roomId:'446277',message:`绑定${code}`,guardType:1});
     await waitFor(async()=> (await bot('group',{groupOpenId:'target-group',memberOpenId:'verified-member',name:'QQ nickname',messageId:'view-'+Date.now(),text:'/查看绑定'})).reply.includes('已验证 B站 UID'));
     const verifiedJoin=await bot('group',{groupOpenId:'target-group',memberOpenId:'verified-member',name:'QQ nickname',messageId:'verified-join',text:'/我要排队'});
     assert.match(verifiedJoin.reply,/第 1 位/);

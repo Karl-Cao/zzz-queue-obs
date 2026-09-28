@@ -71,7 +71,7 @@ const publicQQ = new PublicQQClient(directory, () => s.settings, async incoming 
   if (s.settings.qqMode !== 'public' || !s.settings.qqEnabled || !s.settings.roomId || s.settings.qqGroupOpenId !== incoming.groupOpenId || !/^[a-f0-9]{64}$/.test(incoming.id || '') || !/^[A-Za-z0-9_-]{5,128}$/.test(incoming.memberOpenId || '')) throw Error('本地 QQ 群绑定或排队设置不匹配');
   qqIdentity.state=s;
   let bindingResult;
-  if(['查看绑定','解绑B站'].includes(incoming.message)||/^绑定B站\s+[1-9]\d{0,19}$/.test(incoming.message)) {
+  if(['查看绑定','解绑B站'].includes(incoming.message)||/^绑定B站(?:\s+[1-9]\d{0,19})?$/.test(incoming.message)) {
     await mutate(()=>{qqIdentity.state=s;bindingResult=qqIdentity.command(incoming.groupOpenId,incoming.memberOpenId,incoming.message,s.settings.roomId);});
     return bindingResult;
   }

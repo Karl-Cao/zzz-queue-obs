@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { randomInt } from 'node:crypto';
 import { normalizeLaplaceEvent } from './laplace.mjs';
 
 export class QQIdentity {
@@ -7,13 +7,14 @@ export class QQIdentity {
   command(group,member,text,room,now=Date.now()) {
     const key=this.key(group,member), bound=this.state.qqIdentities[key];
     if(text==='解绑B站') { delete this.state.qqIdentities[key]; this.pending.delete(key); return {reply:'已解除本群的 B站绑定。',clearIdentity:true}; }
-    if(text==='查看绑定') return {reply:bound?`已验证 B站 UID：${bound.uid}，昵称：${bound.name}。舰队身份由主播端自动同步本直播间的舰队名单。`:'尚未验证 UID。请发送：@机器人 /绑定B站 你的B站UID',...(bound?{verifiedIdentity:bound}:{})};
+    if(text==='查看绑定'&&this.pending.has(key)){const p=this.pending.get(key);if(p.expiresAt>now)return {reply:`本次验证尚未完成。请在直播间 ${p.room} 发送：绑定${p.code}。${bound?`原绑定 UID ${bound.uid} 仍保留。`:''}主播助手必须收到这条真实弹幕。`};this.pending.delete(key);}
+    if(text==='查看绑定') return {reply:bound?`已验证 B站 UID：${bound.uid}，昵称：${bound.name}。舰队身份由主播端自动同步本直播间的舰队名单。`:'尚未验证 UID。请发送：@机器人 /绑定B站（无需填写UID），再按提示发送验证弹幕',...(bound?{verifiedIdentity:bound}:{})};
     const uid=/^绑定B站\s+([1-9]\d{0,19})$/.exec(text)?.[1];
-    if(!uid)return null;
-    if(Object.entries(this.state.qqIdentities).some(([k,b])=>k.startsWith(group+':')&&k!==key&&b.uid===uid))return {reply:'这个 B站 UID 已被本群其他 QQ 成员绑定。'};
-    const code=randomBytes(6).toString('hex').toUpperCase();
+    if(text!=='绑定B站'&&!uid)return null;
+    if(uid&&Object.entries(this.state.qqIdentities).some(([k,b])=>k.startsWith(group+':')&&k!==key&&b.uid===uid))return {reply:'这个 B站 UID 已被本群其他 QQ 成员绑定。'};
+    let code;do{code=String(randomInt(100000,1000000));}while([...this.pending.values()].some(p=>p.expiresAt>now&&p.code===code));
     this.pending.set(key,{uid,room:String(room),code,expiresAt:now+5*60_000});
-    return {reply:`请在5分钟内用 B站 UID ${uid} 向直播间 ${room} 发送弹幕：绑定QQ ${code}。发送后在群里 /查看绑定。`};
+    return {reply:`请在5分钟内用你要绑定的 B站账号向直播间 ${room} 发送短弹幕：绑定${code}（只需“绑定”加6位数字，不加空格）。发送后在群里 /查看绑定。`};
   }
   observe(raw,room,now=Date.now()) {
     if(raw.source==='qq')return;
@@ -25,7 +26,7 @@ export class QQIdentity {
     if(this.observed.size>10000)this.observed.delete(this.observed.keys().next().value);
     for(const [key,p] of this.pending) {
       if(p.expiresAt<=now){this.pending.delete(key);continue;}
-      if(p.room!==String(room)||p.uid!==e.uid||e.type!=='message'||e.message.trim()!==`绑定QQ ${p.code}`)continue;
+      if(p.room!==String(room)||(p.uid&&p.uid!==e.uid)||e.type!=='message'||![`绑定${p.code}`,`绑定QQ ${p.code}`].includes(e.message.trim()))continue;
       const group=key.slice(0,key.lastIndexOf(':'));
       if(Object.entries(this.state.qqIdentities).some(([k,b])=>k.startsWith(group+':')&&k!==key&&b.uid===e.uid))continue;
       this.state.qqIdentities[key]={uid:e.uid,name:e.username}; this.pending.delete(key);

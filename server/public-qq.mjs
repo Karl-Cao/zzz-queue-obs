@@ -104,7 +104,7 @@ export class PublicQQClient {
     catch (error) { return { ...local, connected: false, lastError: error.message }; }
   }
 
-  async confirmGroup(openid) { return this.request('/client/confirm-group', { groupOpenId: openid }, 8000); }
+  async confirmGroup(openid) { return this.request('/client/confirm-group', { groupOpenId: openid, numericGroupId: this.getSettings().qqGroupId }, 8000); }
   async announce(announcement, current) {
     if (!this.config || this.getSettings().qqMode !== 'public' || !announcement || !current) return null;
     try { const result = await this.request('/client/announce', { announcementId: announcement.id, uid: current.uid, name: current.username, text:announcement.qqText }, 8000); this.lastAnnouncementError = ''; return result; }
