@@ -28,7 +28,12 @@ export class PublicRelay {
   async load() {
     try {
       const saved = JSON.parse(await readFile(join(this.directory, 'bindings.json'), 'utf8'));
-      for (const client of saved.clients || []) this.clients.set(client.id, client);
+      let cleaned=false;
+      for (const client of saved.clients || []) {
+        for(const member of client.members||[])if(member.bilibiliName&&!member.bilibiliUid){delete member.bilibiliName;cleaned=true;}
+        this.clients.set(client.id, client);
+      }
+      if(cleaned)await this.save();
     } catch (error) { if (error.code !== 'ENOENT') throw error; }
     return this;
   }
@@ -231,6 +236,8 @@ export class PublicRelay {
     const id = hash(`${groupOpenId}:${messageId}`);
     if (this.pending.has(id)) return { error: '消息正在处理，请稍后查看名单' };
     const boundMember = client.members?.find(item => item.openid === memberOpenId);
+    const identityCommand=['查看绑定','解绑B站'].includes(message)||/^绑定B站(?:\s+[1-9]\d{0,19})?$/.test(message);
+    if(!identityCommand&&!boundMember?.bilibiliUid)return {error:'请先 @机器人 /绑定B站，完成直播间短码验证后发送 /查看绑定，再使用群内排队。'};
     const boundName = boundMember?.bilibiliUid ? boundMember.bilibiliName : undefined;
     const event = { id, groupOpenId, memberOpenId,qqName:String(name||'').slice(0,80), name: boundName || String(name || '').slice(0, 80) || `QQ用户${memberOpenId.slice(0, 6)}`, message: String(message || '').slice(0, 80), expiresAt: this.now() + this.deliveryTimeoutMs };
     return new Promise(resolve => {

@@ -14,6 +14,7 @@ test('private owner unbinding is scoped, persistent and stops pending queue requ
   assert.equal(r.status('client-one',token).numericGroupId,'927643163');
   await assert.rejects(r.unbindOwnerGroup('owner-other','927643163'),/没有找到/);
   r.clients.get('client-one').lastPollAt=Date.now();
+  r.clients.get('client-one').members=[{openid:'member-one',name:'Viewer',bilibiliUid:'123',bilibiliName:'Viewer'}];
   const pending=r.queue('group-one','member-one','Viewer','message-one');
   assert.match(await r.unbindOwnerGroup('owner-one'),/已解除/);
   assert.match((await pending).error,/绑定已解除/);

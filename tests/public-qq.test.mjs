@@ -50,6 +50,10 @@ test('shared bot binds two streamers and routes each group to the right local qu
       assert.match(invalidBinding.reply,/无需填写UID/);
       assert.doesNotMatch(invalidBinding.reply,/你的Bilibili昵称/);
     }
+    const blocked=await bot('group',{groupOpenId:'group-A',memberOpenId:'unverified-member',name:'观众A',messageId:'blocked-id',text:'/排队'});
+    assert.match(blocked.reply,/请先.*绑定B站/);assert.equal(receivedA.length,0);
+    relay.clients.get(a.config.id).members=[{openid:'member-A',name:'观众A',bilibiliUid:'101',bilibiliName:'观众A'},{openid:'member-D',name:'观众D',bilibiliUid:'102',bilibiliName:'观众D'}];
+    relay.clients.get(b.config.id).members=[{openid:'member-B',name:'观众B',bilibiliUid:'103',bilibiliName:'观众B'}];
     const first = await bot('group', { groupOpenId: 'group-A', memberOpenId: 'member-A', name: '观众A', messageId: 'message-A', text: '/排队' });
     const second = await bot('group', { groupOpenId: 'group-B', memberOpenId: 'member-B', name: '观众B', messageId: 'message-B', text: '/排队' });
     assert.match(first.reply, /第 1 位/);
@@ -194,16 +198,13 @@ test('public QQ message reaches an isolated local queue with its configured phra
     await waitFor(async () => (await (await fetch(local + '/api/public-qq/status')).json()).groupOpenId === 'target-group');
     await waitFor(() => [...relay.clients.values()].some(client => client.lastPollAt));
     const ignored = await bot('group', { groupOpenId: 'target-group', memberOpenId: 'member-openid', name: '观众甲', messageId: 'ignored-id', text: '/排队' });
-    assert.equal(ignored.reply, null);
+    assert.match(ignored.reply,/请先.*绑定B站/);
     const joined = await bot('group', { groupOpenId: 'target-group', memberOpenId: 'member-openid', name: '观众甲', messageId: 'join-id', text: '/我要排队' });
-    assert.match(joined.reply, /第 1 位/);
-    const state = await (await fetch(local + '/api/state')).json();
-    assert.equal(state.queue.length, 1);
-    assert.equal(state.queue[0].uid, 'qq:member-openid');
-    assert.equal((await post('/api/action', { type: 'advance', currentUid: null, nextUid: 'qq:member-openid' })).status, 200);
-    await waitFor(() => calls.length === 1);
-    assert.equal(calls[0].groupOpenId, 'target-group');
-    assert.equal(calls[0].memberOpenId, 'member-openid');
+    assert.match(joined.reply,/请先.*绑定B站/);
+    assert.match((await bot('group',{groupOpenId:'target-group',memberOpenId:'member-openid',name:'观众甲',messageId:'unbound-red',text:'/红包排队 10'})).reply,/请先.*绑定B站/);
+    relay.clients.values().next().value.members.find(m=>m.openid==='member-openid').bilibiliUid='999';
+    assert.match((await bot('group',{groupOpenId:'target-group',memberOpenId:'member-openid',messageId:'stale-cache',text:'/我要排队'})).reply,/请先.*绑定B站/);
+    const state=await(await fetch(local+'/api/state')).json();assert.equal(state.queue.length,0);assert.equal(calls.length,0);
     await post('/api/action',{type:'settings',settings:{bridgeUrl:`ws://127.0.0.1:${liveBridge.address().port}`,freeQueue:false,voiceCallTemplate:'Voice {name}',qqCallTemplate:'QQ {name}, ready!'}});
     await waitFor(async()=>(await (await fetch(local+'/api/guards/status')).json()).usable);
     await post('/api/bridge/reconnect',{});await waitFor(()=>Boolean(liveSocket));
@@ -217,9 +218,9 @@ test('public QQ message reaches an isolated local queue with its configured phra
     assert.match(verifiedJoin.reply,/第 1 位/);
     const verifiedState=await (await fetch(local+'/api/state')).json();
     assert.equal(verifiedState.queue[0].uid,'12345');assert.equal(verifiedState.queue[0].guardType,1);
-    await post('/api/action',{type:'advance',currentUid:'qq:member-openid',nextUid:'12345'});
-    await waitFor(()=>calls.length===2);assert.equal(calls[1].memberOpenId,'verified-member');
-    assert.equal(calls[1].text,'QQ Verified viewer, ready!');
+    await post('/api/action',{type:'advance',currentUid:null,nextUid:'12345'});
+    await waitFor(()=>calls.length===1);assert.equal(calls[0].memberOpenId,'verified-member');
+    assert.equal(calls[0].text,'QQ Verified viewer, ready!');
     assert.equal((await (await fetch(local+'/api/state')).json()).announcement.text,'Voice Verified viewer');
     rosterTier=0;
     assert.equal((await post('/api/guards/refresh',{})).count,0);
@@ -237,7 +238,9 @@ test('public QQ message reaches an isolated local queue with its configured phra
     assert.equal((await post('/api/action',{type:'red-confirm',id:claimId})).status,400);
     assert.match((await bot('group',requestData)).reply,/已确认入账/);
     const creditedState=await (await fetch(local+'/api/state')).json();assert.equal(creditedState.queue[0].uid,'12345');assert.equal(creditedState.queue[0].cents,250);
-    assert.equal(calls.length,2);
+    assert.equal(calls.length,1);
+    assert.match((await bot('group',{groupOpenId:'target-group',memberOpenId:'verified-member',messageId:'unbind-id',text:'/解绑B站'})).reply,/已解除/);
+    assert.match((await bot('group',{groupOpenId:'target-group',memberOpenId:'verified-member',messageId:'after-unbind',text:'/我要排队'})).reply,/请先.*绑定B站/);
     assert.equal((await post('/api/public-qq/disconnect', {})).status, 200);
   } finally {
     if (child.exitCode === null) { child.kill(); await once(child, 'exit'); }

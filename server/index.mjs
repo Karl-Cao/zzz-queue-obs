@@ -78,6 +78,7 @@ const publicQQ = new PublicQQClient(directory, () => s.settings, async incoming 
   const packetRequest=/^红包排队(?:\s|$)/.test(incoming.message);
   if (incoming.message !== s.settings.command&&!packetRequest) return { ignored: true };
   const verified=qqIdentity.identity(incoming.groupOpenId,incoming.memberOpenId,s.settings.roomId);
+  if(!verified)return {error:'请先 @机器人 /绑定B站，完成直播间短码验证后发送 /查看绑定，再使用群内排队。'};
   if(verified)verified.guardType=guards.level(s.settings.roomId,verified.uid);
   const name = String(verified?.name || incoming.name || '').trim().slice(0,80), uid = verified?.uid || `qq:${incoming.memberOpenId}`, messageId = incoming.id;
   if (!name) throw Error('QQ 昵称无效');
