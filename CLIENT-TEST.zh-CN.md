@@ -1,4 +1,4 @@
-# 主播端快速开始（1.12.7）
+# 主播端快速开始（1.13.0）
 
 新版支持观众真实验证 B站 UID，并把已识别的舰队身份用于 QQ 排队。流程见 [QQ UID 绑定指南](docs/QQ-VIEWER-BINDING.zh-CN.md)。升级前退出旧版；解压新版到新目录，将旧版 `data` 文件夹复制到新版根目录，再启动。不要同时运行新旧两份。该文件夹含绑定令牌，不要发给别人。
 
@@ -6,7 +6,7 @@
 
 ## 安装与首次启动
 
-1. 下载 `obs-queue-1.12.7-windows-x64-exe.zip`（推荐，无需安装 Python）或 `obs-queue-1.12.7-windows-x64-python.zip`（需 Windows 上的 Python 3.10+）。解压到一个普通文件夹，例如 `D:\ZZZQueue`。不要在 ZIP 压缩包里直接运行。
+1. 下载 `obs-queue-1.13.0-windows-x64-exe.zip`（推荐，无需安装 Python）或 `obs-queue-1.13.0-windows-x64-python.zip`（需 Windows 上的 Python 3.10+）。解压到一个普通文件夹，例如 `D:\ZZZQueue`。不要在 ZIP 压缩包里直接运行。
 2. EXE 包双击 `ZZZ Queue.exe` 或 `start.cmd`；Python 包双击 `start.cmd` 或 `start-python.cmd`。右下角任务栏的图标可以打开控制台、重启或退出。若图标不见，查看任务栏的隐藏图标区。再次双击 `start.cmd` 会打开已有控制台，不会重复启动排队服务。
 3. 在电脑浏览器打开控制台显示的地址，完成「直播间 ID」「LAPLACE Event Bridge」等设置。OBS 的排队浏览器源使用本机控制台提供的 `/overlay` 地址。完整的 LAPLACE 和 OBS 设置见 `docs/USER-GUIDE.zh-CN.html`。
 
