@@ -1,6 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { readPng } from '../server/qr-image.mjs';
 
 const hash = value => createHash('sha256').update(value).digest('hex');
 const codePattern = /^[A-Z2-9]{10}$/;
@@ -22,6 +23,8 @@ export class PublicRelay {
     this.waiters = new Map();
     this.attempts = new Map();
     this.sentCalls = new Map();
+    this.latestCalls=new Map();this.sentGameQrs=new Map();this.imageJobs=new Map();
+    this.groupAccess=new Map();this.identityJobs=new Map();
     this.writes = Promise.resolve();
   }
 
@@ -109,6 +112,23 @@ export class PublicRelay {
     return { ok: true, clientId: client.id };
   }
 
+  issueGroupAccess(groupOpenId,numericGroupId){
+    if(!idPattern.test(groupOpenId||''))fail('群标识无效');
+    for(const [code,value] of this.groupAccess)if(value.expiresAt<=this.now())this.groupAccess.delete(code);
+    if(this.groupAccess.size>=10000)fail('接入码申请过多，请稍后再试');
+    const code='G'+randomBytes(5).toString('hex').toUpperCase();
+    this.groupAccess.set(code,{groupOpenId,numericGroupId:String(numericGroupId||''),expiresAt:this.now()+10*60_000});return code;
+  }
+  async requestGroupPrivate(owner,accessCode,code){
+    this.checkAttempts(owner);
+    const client=[...this.clients.values()].find(c=>c.codeExpiresAt>this.now()&&same(c.codeHash,hash(code)));
+    if(!client||!owner||client.ownerOpenId!==owner)fail('请先用自己的QQ私聊 /绑定 有效绑定码',403);
+    const access=this.groupAccess.get(accessCode);
+    if(!access||access.expiresAt<=this.now())fail('群接入码无效或过期，请在目标群 @机器人 /帮助 获取新码');
+    await this.requestGroup(access.groupOpenId,access.numericGroupId,code);
+    this.groupAccess.delete(accessCode);return {ok:true};
+  }
+
   async requestGroup(groupOpenId, numericGroupId, code) {
     if (!idPattern.test(groupOpenId || '') || !codePattern.test(code || '')) fail('群绑定信息无效');
     const client = [...this.clients.values()].find(item => item.codeExpiresAt > this.now() && item.ownerOpenId && same(item.codeHash, hash(code)));
@@ -191,8 +211,30 @@ export class PublicRelay {
     const result = { groupOpenId: client.groupOpenId, memberOpenId:resolvedMember, name: cleanName, mentioned: Boolean(resolvedMember),...(text?{text}:{}) };
     await sendCall(result);
     this.sentCalls.set(key, result);
+    this.latestCalls.set(id,{announcementId,uid:String(uid||''),result});
     if (this.sentCalls.size > 1000) this.sentCalls.delete(this.sentCalls.keys().next().value);
     return result;
+  }
+
+  async sendGameQr(id,token,{announcementId,uid,image,deliveryId,notify=false},sendImage){
+    const client=this.authenticated(id,token);
+    if(!client.groupOpenId)fail('请先绑定 QQ 群',409);
+    if(!/^[a-zA-Z0-9-]{8,128}$/.test(deliveryId||''))fail('图片发送标识无效');
+    const png=readPng(image,256*1024);
+    if(png.width<80||png.height<80||png.width>1600||png.height>1600)fail('登录码图片尺寸无效');
+    const key=`${id}:${deliveryId}`;
+    if(this.sentGameQrs.has(key))return this.sentGameQrs.get(key);
+    if(this.imageJobs.has(id))fail('正在发送登录码，请稍后重试',409);
+    const current=this.latestCalls.get(id);
+    if(!current||current.announcementId!==announcementId||current.uid!==String(uid||'')||current.result.groupOpenId!==client.groupOpenId)fail('叫号已变化，请重新获取当前观众的登录码',409);
+    const work=(async()=>{
+      await sendImage({...current.result,image,notify:Boolean(notify)});
+      const result={ok:true,sent:true};this.sentGameQrs.set(key,result);
+      if(this.sentGameQrs.size>1000)this.sentGameQrs.delete(this.sentGameQrs.keys().next().value);
+      return result;
+    })();
+    this.imageJobs.set(id,work);
+    try{return await work;}finally{this.imageJobs.delete(id);}
   }
 
   async poll(id, token, signal) {
@@ -228,16 +270,51 @@ export class PublicRelay {
     return { ok: true };
   }
 
+  async syncIdentities(id,token,input,sendCall){
+    this.authenticated(id,token);
+    const previous=this.identityJobs.get(id)||Promise.resolve();
+    const work=previous.catch(()=>{}).then(()=>this.applyIdentities(id,token,input,sendCall));
+    this.identityJobs.set(id,work);
+    try{return await work;}finally{if(this.identityJobs.get(id)===work)this.identityJobs.delete(id);}
+  }
+  async applyIdentities(id,token,{groupOpenId,bindings,notices=[]},sendCall){
+    const client=this.authenticated(id,token);
+    if(!client.groupOpenId||client.groupOpenId!==groupOpenId)fail('同步的群与主播绑定不匹配',409);
+    if(!Array.isArray(bindings)||bindings.length>500||!Array.isArray(notices)||notices.length>3)fail('身份同步数据无效');
+    const seenMembers=new Set(),seenUids=new Set();
+    for(const b of bindings){
+      if(!idPattern.test(b.memberOpenId||'')||!/^[1-9]\d{0,19}$/.test(b.uid||'')||typeof b.name!=='string'||!b.name.trim()||b.name.length>80||seenMembers.has(b.memberOpenId)||seenUids.has(b.uid))fail('身份同步包含无效或重复绑定');
+      seenMembers.add(b.memberOpenId);seenUids.add(b.uid);
+    }
+    for(const n of notices)if(!/^[a-f0-9-]{36}$/.test(n.id||'')||n.groupOpenId!==groupOpenId||!bindings.some(b=>b.memberOpenId===n.memberOpenId&&b.uid===n.uid))fail('绑定成功通知与已验证身份不匹配');
+    client.members ||= [];
+    for(const m of client.members){delete m.bilibiliUid;delete m.bilibiliName;}
+    for(const b of bindings){let m=client.members.find(m=>m.openid===b.memberOpenId);if(!m){m={openid:b.memberOpenId,name:b.name};client.members.push(m);}m.bilibiliUid=b.uid;m.bilibiliName=b.name;}
+    client.identityNoticeIds ||= [];
+    await this.save();
+    const delivered=[],errors=[];
+    for(const n of notices){
+      if(client.identityNoticeIds.includes(n.id)){delivered.push(n.id);continue;}
+      if(client.identityRetryAt>this.now()){errors.push(client.identityLastError||'绑定成功通知将在稍后重试');continue;}
+      try{
+        const verified=bindings.find(b=>b.memberOpenId===n.memberOpenId);
+        await sendCall({kind:'identity',groupOpenId,memberOpenId:n.memberOpenId,name:verified.name,text:`验证成功！已绑定 B站 UID ${n.uid}，昵称：${verified.name}。现在可以 /排队，无需发送 /查看绑定。`});
+        client.identityNoticeIds.push(n.id);client.identityNoticeIds=client.identityNoticeIds.slice(-2000);client.identityRetryAt=0;client.identityLastError='';await this.save();delivered.push(n.id);
+      }catch(error){client.identityRetryAt=this.now()+60000;client.identityLastError=error.message;errors.push(error.message);await this.save();}
+    }
+    return {ok:true,delivered,errors};
+  }
+
   async queue(groupOpenId, memberOpenId, name, messageId, message = '排队') {
     const client = [...this.clients.values()].find(item => item.groupOpenId === groupOpenId);
-    if (!client) return message === '排队'||/^红包排队(?:\s|$)/.test(message) ? { error: '此群尚未绑定主播排队助手' } : { ignored: true };
+    if (!client) return ['排队','取消排队'].includes(message)||/^红包排队(?:\s|$)/.test(message) ? { error: '此群尚未绑定主播排队助手' } : { ignored: true };
     if (!client.lastPollAt || this.now() - client.lastPollAt >= 30_000) return { error: '主播排队助手暂未连接' };
     if (!idPattern.test(memberOpenId || '') || !messageId || String(messageId).length > 512) return { error: 'QQ 消息标识无效' };
     const id = hash(`${groupOpenId}:${messageId}`);
     if (this.pending.has(id)) return { error: '消息正在处理，请稍后查看名单' };
     const boundMember = client.members?.find(item => item.openid === memberOpenId);
     const identityCommand=['查看绑定','解绑B站'].includes(message)||/^绑定B站(?:\s+[1-9]\d{0,19})?$/.test(message);
-    if(!identityCommand&&!boundMember?.bilibiliUid)return {error:'请先 @机器人 /绑定B站，完成直播间短码验证后发送 /查看绑定，再使用群内排队。'};
+    if(!identityCommand&&!boundMember?.bilibiliUid)return {error:'请先 @机器人 /绑定B站，完成直播间短码验证并收到成功通知后，再使用群内排队。'};
     const boundName = boundMember?.bilibiliUid ? boundMember.bilibiliName : undefined;
     const event = { id, groupOpenId, memberOpenId,qqName:String(name||'').slice(0,80), name: boundName || String(name || '').slice(0, 80) || `QQ用户${memberOpenId.slice(0, 6)}`, message: String(message || '').slice(0, 80), expiresAt: this.now() + this.deliveryTimeoutMs };
     return new Promise(resolve => {

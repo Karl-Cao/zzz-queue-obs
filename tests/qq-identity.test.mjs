@@ -36,7 +36,8 @@ test('bindings persist without retaining chat fleet privileges',()=>{
   assert.equal(restarted.identity('group','member','room',1002).guardType,0);
   q.observe(live('123','hello',0),'room',1002);assert.equal(q.identity('group','member','room',1003).guardType,0);
   assert.equal(q.identity('other-group','member','room',1003),null);
-  q.command('group','member','解绑B站','room');assert.equal(q.identity('group','member','room'),null);
+  assert.equal(s.qqIdentityOutbox.length,1);
+  q.command('group','member','解绑B站','room');assert.equal(q.identity('group','member','room'),null);assert.equal(s.qqIdentityOutbox.length,0);
 });
 
 

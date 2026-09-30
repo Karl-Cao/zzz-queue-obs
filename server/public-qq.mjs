@@ -26,6 +26,7 @@ export class PublicQQClient {
     this.lastContactAt = 0;
     this.lastError = '';
     this.lastAnnouncementError = '';
+    this.lastIdentityError='';this.identitySignature='';this.lastIdentitySync=0;
   }
 
   async load() {
@@ -98,17 +99,32 @@ export class PublicQQClient {
   }
 
   async status() {
-    const local = { configured: Boolean(this.config), url: this.config?.url || '', connected: Boolean(this.lastContactAt && Date.now() - this.lastContactAt < 30_000), lastError: this.lastError, lastAnnouncementError: this.lastAnnouncementError };
+    const local = { configured: Boolean(this.config), url: this.config?.url || '', connected: Boolean(this.lastContactAt && Date.now() - this.lastContactAt < 30_000), lastError: this.lastError, lastIdentityError:this.lastIdentityError,lastAnnouncementError: this.lastAnnouncementError };
     if (!this.config) return local;
     try { return { ...local, ...(await this.request('/client/status', {}, 8000)), connected: true, lastError: '' }; }
     catch (error) { return { ...local, connected: false, lastError: error.message }; }
   }
 
-  async confirmGroup(openid) { return this.request('/client/confirm-group', { groupOpenId: openid, numericGroupId: this.getSettings().qqGroupId }, 8000); }
+  async syncIdentities(groupOpenId,bindings,notices){
+    const signature=JSON.stringify([groupOpenId,bindings]);
+    if(!notices.length&&signature===this.identitySignature&&Date.now()-this.lastIdentitySync<30000)return {};
+    const result=await this.request('/client/identity-sync',{groupOpenId,bindings,notices:notices.slice(0,3)},30000);
+    this.identitySignature=signature;this.lastIdentitySync=Date.now();this.lastIdentityError=result.errors?.join('；')||'';return result;
+  }
+  async confirmGroup(openid) {const result=await this.request('/client/confirm-group',{groupOpenId:openid,numericGroupId:this.getSettings().qqGroupId},8000);this.identitySignature='';return result;}
+
   async announce(announcement, current) {
     if (!this.config || this.getSettings().qqMode !== 'public' || !announcement || !current) return null;
     try { const result = await this.request('/client/announce', { announcementId: announcement.id, uid: current.uid, name: current.username, text:announcement.qqText }, 8000); this.lastAnnouncementError = ''; return result; }
     catch (error) { this.lastAnnouncementError = error.message; throw error; }
+  }
+
+  async sendGameQr(announcement,current,qr,deliveryId,notify=false){
+    if(!this.config||this.getSettings().qqMode!=='public')throw Error('请先连接公共 QQ 机器人');
+    try{
+      const result=await this.request('/client/game-qr',{announcementId:announcement.id,uid:current.uid,image:qr.image,deliveryId,notify},30000);
+      this.lastAnnouncementError='';return result;
+    }catch(error){this.lastAnnouncementError=error.message;throw error;}
   }
 
   async disconnect() {

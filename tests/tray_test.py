@@ -22,6 +22,7 @@ class TrayLifecycle(unittest.TestCase):
             root = Path(directory)
             for folder in ('server', 'public', 'scripts'):
                 shutil.copytree(ROOT / folder, root / folder)
+            shutil.copy2(ROOT / 'package.json', root / 'package.json')
             with socket.socket() as sock:
                 sock.bind(('127.0.0.1', 0))
                 port = str(sock.getsockname()[1])
@@ -53,6 +54,7 @@ class TrayLifecycle(unittest.TestCase):
             root = Path(directory)
             for folder in ('server', 'public', 'scripts'):
                 shutil.copytree(ROOT / folder, root / folder)
+            shutil.copy2(ROOT / 'package.json', root / 'package.json')
             service = tray.Service(root)
             with socket.socket() as blocker:
                 blocker.bind(('0.0.0.0', 0))

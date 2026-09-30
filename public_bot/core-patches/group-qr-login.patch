@@ -1,0 +1,146 @@
+diff --git a/gsuid_core/buildin_plugins/core_command/user_login/__init__.py b/gsuid_core/buildin_plugins/core_command/user_login/__init__.py
+index 70af06f..f79a2ad 100644
+--- a/gsuid_core/buildin_plugins/core_command/user_login/__init__.py
++++ b/gsuid_core/buildin_plugins/core_command/user_login/__init__.py
+@@ -8,6 +8,7 @@ from gsuid_core.bot import Bot
+ from gsuid_core.i18n import t as i18n_t
+ from gsuid_core.logger import logger
+ from gsuid_core.models import Event
++from gsuid_core.segment import MessageSegment
+ from gsuid_core.message_models import Button
+ from gsuid_core.utils.api.mys_api import mys_api
+ from gsuid_core.utils.database.models import GsUser
+@@ -163,8 +164,16 @@ async def _send_help(bot: Bot, im):
+ async def send_qrcode_login(bot: Bot, ev: Event):
+     logger.info(i18n_t("log.core.qr_code_login_start"))
+     uid_list = await get_all_bind_uid(ev.bot_id, ev.user_id)
++    group_zzz_login = ev.bot_id == "qqgroup" and ev.user_type == "group"
++    if group_zzz_login and not uid_list[2]:
++        return await bot.send(MessageSegment.markdown(
++            f'<qqbot-at-user id="{ev.user_id}" /> 请先由本人发送 /zzz绑定UID你的绝区零UID，再发送 /扫码登录。'
++        ))
+     if any(uid_list):
+-        im = await qrcode_login(bot, ev, ev.user_id)
++        im = await qrcode_login(
++            bot, ev, ev.user_id,
++            expected_zzz_uid=uid_list[2] if group_zzz_login else None,
++        )
+     else:
+         return await bot.send(
+             await bot.t("您还没有绑定原神/星铁/绝区零/崩坏3的UID！\n请先检查对应插件的帮助说明绑定任一UID...")
+@@ -173,6 +182,10 @@ async def send_qrcode_login(bot: Bot, ev: Event):
+     if not im:
+         return
+     im, status = await deal_ck(ev.bot_id, im, ev.user_id)
++    if group_zzz_login:
++        await bot.send(MessageSegment.markdown(
++            f'<qqbot-at-user id="{ev.user_id}" /> 扫码处理完成，结果见下方。'
++        ))
+     if status:
+         await _send_help(bot, im)
+     else:
+diff --git a/gsuid_core/utils/cookie_manager/qrlogin.py b/gsuid_core/utils/cookie_manager/qrlogin.py
+index 4c68145..0323b18 100644
+--- a/gsuid_core/utils/cookie_manager/qrlogin.py
++++ b/gsuid_core/utils/cookie_manager/qrlogin.py
+@@ -13,6 +13,7 @@ from gsuid_core.logger import logger
+ from gsuid_core.models import Event
+ from gsuid_core.segment import MessageSegment
+ from gsuid_core.utils.api.mys_api import mys_api
++from gsuid_core.utils.cookie_manager.verified_game_uid import owns_zzz_uid
+ 
+ 
+ async def get_qrcode_base64(url: str, path: Path, bot_id: str) -> bytes:
+@@ -86,9 +87,16 @@ async def refresh(
+     return True, status_data
+ 
+ 
+-async def qrcode_login(bot: Bot, ev: Event, user_id: str) -> str:
++async def qrcode_login(
++    bot: Bot, ev: Event, user_id: str, expected_zzz_uid: str | None = None
++) -> str:
+     async def send_msg(msg: str):
+-        await bot.send(msg)
++        if expected_zzz_uid is not None:
++            await bot.send(MessageSegment.markdown(
++                f'<qqbot-at-user id="{ev.user_id}" /> {msg}'
++            ))
++        else:
++            await bot.send(msg)
+         return ""
+ 
+     code_data = await mys_api.create_hyp_qrcode_url()
+@@ -97,9 +105,16 @@ async def qrcode_login(bot: Bot, ev: Event, user_id: str) -> str:
+ 
+     path = Path(__file__).parent / f"{user_id}.gif"
+ 
++    qr_image = await get_qrcode_base64(code_data["url"], path, ev.bot_id)
+     im = []
+-    im.append(MessageSegment.text("请使用米游社扫描下方二维码登录："))
+-    im.append(MessageSegment.image(await get_qrcode_base64(code_data["url"], path, ev.bot_id)))
++    if expected_zzz_uid is not None:
++        im.append(MessageSegment.text(
++            "请本人使用米游社扫描下方二维码。群内所有成员都能看见它，请勿代扫；"
++            "扫码账号的绝区零 UID 必须与发起人已绑定的 UID 相同，否则不会保存凭据。"
++        ))
++    else:
++        im.append(MessageSegment.text("请使用米游社扫描下方二维码登录："))
++    im.append(MessageSegment.image(qr_image))
+     im.append(
+         MessageSegment.text(
+             "免责声明:您将通过扫码完成获取米游社sk以及ck。\n"
+@@ -108,12 +123,32 @@ async def qrcode_login(bot: Bot, ev: Event, user_id: str) -> str:
+             "害怕风险请勿扫码~"
+         )
+     )
+-    await bot.send(MessageSegment.node(im))
++    if expected_zzz_uid is not None:
++        # Keep the verified image reply and separate real QQ markdown mention.
++        # The image reply also identifies its requester by visible nickname.
++        await bot.send(im)
++        bot.ev.msg_id = ""  # Post-scan status is a new group message.
++    else:
++        await bot.send(MessageSegment.node(im))
+ 
+     if path.exists():
+         path.unlink()
+ 
+     status, login_data = await refresh(code_data)
++    return await _finish_qrcode_login(bot, ev, user_id, expected_zzz_uid, status, login_data)
++
++
++async def _finish_qrcode_login(
++    bot: Bot, ev: Event, user_id: str, expected_zzz_uid: str | None,
++    status: bool, login_data: Any,
++) -> str:
++    async def send_msg(msg: str):
++        if expected_zzz_uid is not None:
++            await bot.send(MessageSegment.markdown(f'<qqbot-at-user id="{ev.user_id}" /> {msg}'))
++        else:
++            await bot.send(msg)
++        return ""
++
+     if status:
+         assert login_data is not None  # 骗过 pyright
+         tokens = login_data.get("tokens", [])
+@@ -140,6 +175,20 @@ async def qrcode_login(bot: Bot, ev: Event, user_id: str) -> str:
+         if isinstance(ck, int):
+             return await send_msg("[登录]获取CK失败...")
+ 
++        if expected_zzz_uid is not None:
++            # A group QR is visible to everyone. Never persist the scanned account
++            # unless it actually owns the command sender's bound ZZZ game UID.
++            account_cookie = f"account_id={account_id};cookie_token={ck['cookie_token']}"
++            try:
++                roles = await mys_api.get_mihoyo_bbs_info(account_id, account_cookie)
++            except Exception as error:
++                logger.warning("Group QR account role lookup failed: %s", type(error).__name__)
++                return await send_msg("[登录]无法核对扫码账号的绝区零UID，凭据未保存。请稍后重试。")
++            if not isinstance(roles, list):
++                return await send_msg("[登录]无法核对扫码账号的绝区零UID，凭据未保存。请稍后重试。")
++            if not owns_zzz_uid(roles, expected_zzz_uid):
++                return await send_msg("[登录]扫码账号与发起人的绝区零UID不符，凭据未保存。请本人重新扫码。")
++
+         return SimpleCookie(
+             {
+                 "stoken_v2": stoken,

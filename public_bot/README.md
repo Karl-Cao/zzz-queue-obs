@@ -18,7 +18,12 @@ QQ 开放平台当前的「使用范围与人员」页面提供添加到群及�
 
 ## 当前 Windows 本机托管
 
-QQ 群指令面板已通过 API 合并为一张「全部指令」面板，包含排队与绑定及红包申报（6项）、绝区零查询（10项）、角色攻略（1项），避免分组面板只显示最后一组。面板生成的 `/zzz角色攻略 安比` 与手输的同格式口令均可识别；所有QQ口令必须以 `/` 开头。带参数的指令点选后须按提示补上游戏 UID 或角色名；B站绑定无需参数再发送。群内仍须真正 @机器人。面板只帮助输入口令，不代替主播群绑定或账号绑定。当前上游“角色图鉴、音擎攻略、驱动盘、突破材料、武器、邦布”均为空实现，已移出菜单，手动发送会明确提示未支持。红包申报可用 `/红包排队 金额`，金额仅在主播核对后计入，步骤见 [红包核对指南](../docs/QQ-RED-PACKET.zh-CN.md)；查询所需素材及 CK 条件仍按原插件要求。
+QQ 群指令面板合并为一张「全部指令」面板。所有 QQ 口令须以 `/` 开头，群内须真正 @机器人。ZZZeroUID 更新后，`/zzz角色图鉴 角色名`、`/zzz驱动盘 套装名`、`/zzz邦布 邦布名` 已有实现；面板容量上限为 20 条，未列入面板的口令仍可手输。`/zzz音擎攻略`、`/zzz突破材料` 暂无对应指令。红包申报使用 `/红包排队 金额`，金额仅在主播核对后计入，步骤见 [红包核对指南](../docs/QQ-RED-PACKET.zh-CN.md)。
+
+查询需要米游社凭据时，观众先在群里真正 @机器人发送 `/zzz绑定UID自己的绝区零UID`，再由**本人**发送 `/扫码登录`。机器人会 @发起者并在群里发送二维码；群里每个人都能看到二维码，切勿代扫或扫描别人的登录二维码。扫码完成后，服务器核对该米游社账号是否拥有发起者预先绑定的绝区零 UID；核对失败不会保存 Cookie。这个限制只防止错号入库，无法让群二维码变成私密内容。主播端更新不影响此服务端流程。
+QQ 官方接口的图片消息和 Markdown 提及使用不同消息类型，因此提醒与二维码分为两条群消息：第一条是真正可点击的 @，第二条回复原指令并显示发起者昵称、二维码和说明。第二条昵称用来区分多人同时登录的二维码；不会额外出现原样 `<@…>` 标签。群必须允许机器人主动发言。
+扫码完成、失败或二维码过期时，机器人也会以真正的 @ 标出发起者；图片形式的绑定结果紧随该提醒发送。
+早柚核心放在独立的运行目录，不随主播端代码提交。更新或重新安装核心后，先运行 `python public_bot/apply-core-qr-patch.py 核心目录`；本机 `home-host.ps1 -Action StartBot` 会自动核对并应用这份补丁。若上游核心代码变化导致补丁不匹配，脚本会停止而不会覆盖未知修改。
 
 运营者可运行 `python public_bot/sync-command-panels.py` 更新这些面板；脚本从本机凭据文件获取短期令牌，只更新以 `ZZZQueue:` 备注标识的面板，保留其他面板，并回读验证。`--validate` 只检查指令数量和文本长度，不调用 QQ。此脚本仅供服务运营者使用，不打进主播端。
 
@@ -32,6 +37,7 @@ QQ 群指令面板已通过 API 合并为一张「全部指令」面板，包含
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File public_bot/home-host.ps1 -Action StartRelay
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File public_bot/home-host.ps1 -Action StartBot
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File public_bot/home-host.ps1 -Action StopBot
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File public_bot/home-host.ps1 -Action StopCore
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File public_bot/home-host.ps1 -Action Status
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File public_bot/home-host.ps1 -Action Stop
 ```
@@ -52,10 +58,10 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File public_bot/home-host.ps1
 
 ## 主播绑定
 
-观众可发送 `/绑定B站`，无需UID，再用要绑定的B站账号在本主播直播间发送8字符短验证码（5分钟有效），验证 UID 所有权。查看或解除使用 `/查看绑定`、`/解绑B站`。QQ 成员 OpenID 与 UID 的对应关系按群隔离，舰队优先级来自主播端每分钟自动同步的本房间完整舰队名单，不依赖观众定期发弹幕。完整步骤见 [观众绑定指南](../docs/QQ-VIEWER-BINDING.zh-CN.md)。旧昵称绑定入口已取消。主播私聊 `/解绑群` 可解除自己的群连接。
+观众可发送 `/绑定B站`，无需UID，再用要绑定的B站账号在本主播直播间发送8字符短验证码（5分钟有效），验证 UID 所有权。收到真实弹幕后会自动在QQ群通知验证成功，无需再查询。查看或解除使用 `/查看绑定`、`/解绑B站`。QQ 成员 OpenID 与 UID 的对应关系按群隔离，舰队优先级来自主播端每分钟自动同步的本房间完整舰队名单，不依赖观众定期发弹幕。完整步骤见 [观众绑定指南](../docs/QQ-VIEWER-BINDING.zh-CN.md)。旧昵称绑定入口已取消。主播私聊 `/解绑群` 可解除自己的群连接。
 
 1. 本地助手中设置直播间 ID、数字 QQ 群号，开启「QQ 群文字排队」。在「公共 QQ 机器人」填写服务的 HTTPS 根地址，点「生成私聊绑定码」。
-2. 主播私聊机器人发 `/绑定 XXXXXXXXXX`。机器人回复后，在目标群真正 `@机器人 绑定群 XXXXXXXXXX`。
+2. 主播私聊机器人发 `/绑定 XXXXXXXXXX`。在目标群真正 `@机器人 /帮助` 获取群接入码，再私聊 `/绑定群 群接入码 XXXXXXXXXX`；群消息不能绑定或解绑。
 3. 回本地控制台确认刚才的群 OpenID。之后群内 `@机器人 /排队` 会进入此台电脑的队列并回复名次；`@机器人 /zzz帮助` 等查询继续由公共服务处理。
 
 绑定码 5 分钟有效，确认后即失效。一个群只能绑定一台活跃安装实例；换群需解除旧连接并重新绑定。QQ 成员 OpenID 与 B 站 UID 无法自动视作同一身份。群叫号优先匹配 QQ 入队者的 OpenID；B 站观众则用其昵称与曾 @ 过机器人的群成员昵称精确匹配，重名时只发文字。测试群 168426621 已验证主动群消息和真正的 @；其他群也需要开启主动发言权限。
@@ -63,3 +69,5 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File public_bot/home-host.ps1
 主播私聊提交的是一次性**绑定码**，不是 AppID、AppSecret、B 站登录信息或米游社 Cookie。中转服务把私聊 QQ OpenID 与该安装实例关联；本机持有随机客户端令牌，并在群绑定时再次由主播确认。这样可达到“私聊绑定到本地排队助手”的目的，而不用集中收集用户凭据。
 
 本地助手没有公网入站端口。离线或请求超时会回复“主播排队助手暂未连接/响应”，不会悄悄把旧消息留待以后加入队列。服务器仅保存绑定关系和临时投递事件；AppSecret、Cookie、队列数据不从主播电脑上传。
+
+身份保存于主播本地 `data/qq-identities.json`，升级保留完整 data 文件夹；重新连接后自动恢复服务器身份缓存。私聊 `/帮助`、`/查看群`、`/解绑群` 提供主播操作指引。

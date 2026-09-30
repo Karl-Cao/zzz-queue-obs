@@ -1,0 +1,41 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {mkdtemp,readFile,writeFile,rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';import {join} from 'node:path';import {spawn} from 'node:child_process';import {once} from 'node:events';
+import {createServer} from 'node:http';import {createHash} from 'node:crypto';
+import {PublicRelay} from '../public_bot/relay-core.mjs';import {createRelayServer} from '../public_bot/relay-server.mjs';
+import {QueueOverlay} from '../public/queue-overlay.js';
+const wait=async fn=>{for(let i=0;i<200;i++){if(await fn())return;await new Promise(r=>setTimeout(r,25));}throw Error('Workflow wait timed out');};
+test('QQ B current -> selected C -> A and B pending 60 -> B live gift 0.10 -> independent confirmations', {timeout:15000},async()=>{
+ const dir=await mkdtemp(join(tmpdir(),'zzz-returned-workflow-')),secret='s'.repeat(48),relay=new PublicRelay(join(dir,'relay'),{deliveryTimeoutMs:3000});
+ const hosted=await createRelayServer({relay,botSecret:secret,listenPort:0,sendCall:async()=>{}});
+ const live=createServer();let liveSocket,child;live.on('upgrade',(req,socket)=>{liveSocket=socket;socket.on('error',()=>{});const accept=createHash('sha1').update(req.headers['sec-websocket-key']+'258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest('base64');socket.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\nSec-WebSocket-Protocol: client\r\n\r\n`);});
+ live.listen(0,'127.0.0.1');await once(live,'listening');
+ const portServer=createServer();portServer.listen(0,'127.0.0.1');await once(portServer,'listening');const port=portServer.address().port;await new Promise(r=>portServer.close(r));const base=`http://127.0.0.1:${port}`;
+ const fixture={settings:{roomId:'446277',qqEnabled:true,qqMode:'public',qqGroupId:'168426621',freeQueue:true},qqIdentities:{'group-test:member-A':{uid:'111',name:'A'},'group-test:member-B':{uid:'222',name:'B'},'group-test:member-C':{uid:'333',name:'C'}}};
+ await writeFile(join(dir,'state.json'),JSON.stringify(fixture));
+ const post=async(path,data)=>{const r=await fetch(base+path,{method:'POST',headers:{Origin:base,'Content-Type':'application/json'},body:JSON.stringify(data)});const value=await r.json();assert.equal(r.status,200,JSON.stringify(value));return value;};
+ let sequence=0;const bot=async(who,text)=>{const r=await fetch(hosted.url+'/bot/group',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+secret},body:JSON.stringify({groupOpenId:'group-test',memberOpenId:'member-'+who,name:who,messageId:'test-'+(++sequence),text})});const data=await r.json();assert.equal(r.status,200);return data;};
+ const state=async()=>await(await fetch(base+'/api/state')).json();const timeline=[];
+ const record=async step=>{const s=await state();timeline.push({step,current:s.current?.username||null,queue:s.queue.map(x=>({name:x.username,cents:x.cents,pending:Boolean(x.pendingRedPacket||x.hasPendingRedPacket),joinedAt:x.joinedAt}))});return s;};
+ const html=row=>QueueOverlay.prototype.row.call({t:zh=>zh,state:{settings:{}}},row,0);
+ try{
+  child=spawn(process.execPath,['server/index.mjs'],{env:{...process.env,PORT:String(port),QUEUE_DATA_DIR:dir,QUEUE_DISABLE_BRIDGE:'1'},stdio:['ignore','pipe','pipe'],windowsHide:true});
+  await Promise.race([once(child.stdout,'data'),once(child,'exit').then(()=>{throw Error('Isolated server exited');})]);
+  const pair=await post('/api/public-qq/pair',{url:hosted.url});await relay.bindOwner('owner-test',pair.code);await relay.requestGroupPrivate('owner-test',relay.issueGroupAccess('group-test','168426621'),pair.code);await post('/api/public-qq/confirm',{groupOpenId:'group-test'});
+  await wait(()=>[...relay.clients.values()].some(c=>c.lastPollAt&&c.members?.filter(m=>m.bilibiliUid).length===3));
+  assert.match((await bot('B','/排队')).reply,/第 1 位/);let s=await record('B joins through QQ');const joinedAt=s.queue[0].joinedAt;
+  await post('/api/action',{type:'advance',currentUid:null,nextUid:'222'});await record('B becomes current');
+  await bot('C','/排队');await post('/api/action',{type:'select-call',uid:'333',currentUid:'222'});s=await record('Call C; return B to waiting queue');assert.equal(s.current.username,'C');assert.equal(s.queue[0].username,'B');
+  assert.match((await bot('A','/红包排队 60')).reply,/等待主播核对/);await record('A reports 60; pending');
+  assert.match((await bot('B','/红包排队 60')).reply,/等待主播核对/);s=await record('B reports 60 while A is pending');assert.equal(s.queue.length,2);assert.ok(s.queue.every(x=>x.pendingRedPacket||x.hasPendingRedPacket));assert.match(html(s.queue.find(x=>x.uid==='222')),/待核对/);
+  await post('/api/action',{type:'settings',settings:{bridgeUrl:`ws://127.0.0.1:${live.address().port}`}});await wait(async()=>Boolean(liveSocket)&&!liveSocket.destroyed&&(await(await fetch(base+'/api/health')).json()).bridge==='connected');
+  const raw={type:'gift',origin:'446277',uid:'222',username:'B',giftName:'粉丝团灯牌',giftId:'1',coinType:'gold',price:100,priceNormalized:0.1,id:'unique-fan-lamp'};
+  const payload=Buffer.from(JSON.stringify(raw)),head=Buffer.alloc(4);head[0]=0x81;head[1]=126;head.writeUInt16BE(payload.length,2);liveSocket.write(Buffer.concat([head,payload]));
+  await wait(async()=>((await state()).queue.find(x=>x.uid==='222')?.cents===10));s=await record('B receives live bridge gift 0.10 before either approval');const b=s.queue.find(x=>x.uid==='222');assert.equal(b.hasPendingRedPacket,true);assert.equal(b.joinedAt,joinedAt);assert.match(html(b),/¥0.10/);assert.match(html(b),/待核对/);
+  let saved=JSON.parse(await readFile(join(dir,'state.json'),'utf8'));const aId=saved.redPackets.find(x=>x.uid==='111').id,bId=saved.redPackets.find(x=>x.uid==='222').id;
+  await post('/api/action',{type:'red-confirm',id:aId});s=await record('Approve A only');assert.equal(s.queue.find(x=>x.uid==='111').cents,6000);assert.equal(s.queue.find(x=>x.uid==='222').hasPendingRedPacket,true);assert.equal(s.queue.find(x=>x.uid==='222').cents,10,JSON.stringify({timeline,queue:s.queue,claims:JSON.parse(await readFile(join(dir,'state.json'),'utf8')).redPackets}));
+  await post('/api/action',{type:'red-confirm',id:bId});s=await record('Approve B');const final=s.queue.find(x=>x.uid==='222');assert.equal(final.cents,6010);assert.equal(final.hasPendingRedPacket,undefined);assert.equal(final.joinedAt,joinedAt);assert.equal(s.current.username,'C');assert.equal(s.queue[0].username,'B');assert.match(html(final),/¥60.10/);
+  await writeFile('data/returned-viewer-workflow-result.json',JSON.stringify({isolated:true,simulatedQQ:true,simulatedBridgeGift:true,timeline},null,2));
+ }finally{if(child&&child.exitCode===null){child.kill();await once(child,'exit');}liveSocket?.destroy();await new Promise(r=>live.close(r));relay.shutdown();hosted.server.closeAllConnections();await new Promise(r=>hosted.server.close(r));await rm(dir,{recursive:true,force:true});}
+});

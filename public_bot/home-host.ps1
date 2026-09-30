@@ -1,4 +1,4 @@
-param([ValidateSet('StartRelay','StartBot','StopBot','StopRelay','Status','Stop')][string]$Action='Status')
+param([ValidateSet('StartRelay','StartBot','StopBot','StopCore','StopRelay','Status','Stop')][string]$Action='Status')
 $ErrorActionPreference='Stop'
 $root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $folder=Join-Path $root 'data\public-qq-host'
@@ -81,6 +81,8 @@ elseif ($Action -eq 'StartBot') {
     if (-not (Owned (Read-Records)['relay'])) { throw 'StartRelay first' }
     $creds=Get-Content -LiteralPath (Join-Path $root 'data\qq-runtime\official-bot.json') -Raw -Encoding UTF8 | ConvertFrom-Json
     if (-not $creds.appId -or -not $creds.secret -or -not (Test-Path -LiteralPath $python) -or -not (Test-Path -LiteralPath $coreExe)) { throw 'Official QQ credentials or query runtime are missing' }
+    & $python (Join-Path $root 'public_bot\apply-core-qr-patch.py') $coreRoot
+    if ($LASTEXITCODE -ne 0) { throw 'gsuid-core QR guard patch verification failed' }
     if (-not (Test-LocalPort 8765)) {
         Launch 'core' $coreExe '--host 127.0.0.1 --port 8765' $coreRoot
         for ($i=0; $i -lt 60 -and -not (Test-LocalPort 8765); $i++) { Start-Sleep -Seconds 1 }
@@ -98,8 +100,8 @@ elseif ($Action -eq 'StartBot') {
     try { Launch 'bot' $python ('"'+(Join-Path $root 'public_bot\start_bot.py')+'"') $nonebotRoot }
     finally { Remove-Item Env:\PUBLIC_QQ_APP_ID,Env:\PUBLIC_QQ_APP_SECRET,Env:\PUBLIC_QQ_BOT_TOKEN,Env:\PUBLIC_QQ_ENABLE_ZZZ,Env:\PYTHONIOENCODING,Env:\PYTHONUTF8,Env:\GSUID_CORE_PATH,Env:\GSUID_CORE_HOST,Env:\GSUID_CORE_PORT -ErrorAction SilentlyContinue }
 }
-elseif ($Action -in @('StopBot','StopRelay')) {
-    $serviceName=if($Action -eq 'StopBot'){'bot'}else{'relay'}
+elseif ($Action -in @('StopBot','StopCore','StopRelay')) {
+    $serviceName=if($Action -eq 'StopBot'){'bot'}elseif($Action -eq 'StopCore'){'core'}else{'relay'}
     $records=Read-Records
     if (Owned $records[$serviceName]) {
         & taskkill.exe /PID ([int]$records[$serviceName].pid) /T /F | Out-Null

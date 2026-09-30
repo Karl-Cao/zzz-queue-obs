@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 
 const digest = value => createHash('sha256').update(value).digest('base64');
 
-export async function addLaplaceDashboard({ port, password, url }) {
+export async function withObs({ port, password }, task) {
   const socket = new WebSocket(`ws://127.0.0.1:${port}`);
   const pending = new Map();
   let sequence = Promise.resolve();
@@ -64,6 +64,24 @@ export async function addLaplaceDashboard({ port, password, url }) {
 
   try {
     await ready;
+    return await task(request);
+  } finally { close(); }
+}
+
+export async function listObsInputs(connection) {
+  return withObs(connection, async request => (await request('GetInputList')).inputs || []);
+}
+
+export async function screenshotObsSource(connection, sourceName) {
+  return withObs(connection, async request => {
+    const result = await request('GetSourceScreenshot', { sourceName, imageFormat: 'png', imageWidth: 2560, imageHeight: 1440 });
+    if (typeof result.imageData !== 'string' || !result.imageData.startsWith('data:image/png;base64,')) throw Error('OBS 未返回 PNG 画面');
+    return result.imageData;
+  });
+}
+
+export async function addLaplaceDashboard({ port, password, url }) {
+  return withObs({ port, password }, async request => {
     const [version, scene, stream, recording] = await Promise.all([
       request('GetVersion'), request('GetCurrentProgramScene'), request('GetStreamStatus'), request('GetRecordStatus'),
     ]);
@@ -95,5 +113,5 @@ export async function addLaplaceDashboard({ port, password, url }) {
     catch { interactionOpened = false; }
 
     return { sceneName, inputName, audioMonitoring, interactionOpened };
-  } finally { close(); }
+  });
 }

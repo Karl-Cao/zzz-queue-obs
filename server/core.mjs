@@ -35,6 +35,18 @@ export function call(s) { const first=s.current; if(first) s.announcement={id:ra
 function change(s,fn) { fn(); }
 function join(s,e,cents=0,now=Date.now()) { let item=s.queue.find(x=>x.uid===e.uid); if(!item){if(s.queue.length>=1000) throw Error('队列已满（1000 人）');item={uid:e.uid,username:e.username,cents:0,order:++s.sequence,joinedAt:now,manual:!!e.manual,guardType:e.guardType??0,source:e.raw?.source||'bilibili'};s.queue.push(item);} item.username=e.username;if(e.guardType!==undefined)item.guardType=e.guardType;item.cents+=cents;return item; }
 export function finish(s,now=Date.now()) { if(!s.lottery?.active)return; change(s,()=>{const entries=s.lottery.entries.filter(x=>x.uid!==s.current?.uid);s.lottery.active=false;s.lottery.finishedAt=now;if(!entries.length){s.lottery.winner=null;return;}const winner=entries[randomInt(entries.length)];s.lottery.winner=winner;join(s,winner,0,now).pin=++s.drawSequence;}); }
+export function cancelQueue(s,uid,now=Date.now()) {
+ if(s.current?.uid===uid)return {cancelled:false,current:true,reply:'你已在当前位，请联系主播处理当前任务。'};
+ const removed=s.queue.filter(x=>x.uid===uid);
+ const claims=(s.redPackets||[]).filter(x=>x.uid===uid&&x.roomId===s.settings.roomId&&x.status==='pending');
+ const entries=s.lottery?.entries||[],withdrawn=entries.some(x=>x.uid===uid);
+ s.queue=s.queue.filter(x=>x.uid!==uid);
+ for(const claim of claims){claim.status='cancelled';claim.resolvedAt=now;}
+ if(s.lottery)s.lottery.entries=entries.filter(x=>x.uid!==uid);
+ const cancelled=Boolean(removed.length||claims.length||withdrawn);
+ if(cancelled){s.undo=null;s.history=[...removed.map(x=>({...x,removedAt:now,reason:'self-cancel'})),...s.history].slice(0,100);}
+ return {cancelled,reply:cancelled?'已取消排队。'+(claims.length?'待核对红包申请已取消。':''):'你目前不在等待队列中。'};
+}
 export function event(s,raw,now=Date.now(),manual=false) {
  if(s.lottery?.active && now>=s.lottery.endsAt)finish(s,now);
  let e=normalizeLaplaceEvent(raw);
@@ -43,6 +55,7 @@ export function event(s,raw,now=Date.now(),manual=false) {
  const key=e.eventId?`${e.roomId}:${e.type}:${e.eventId}`:null;
  if(key && s.seen.includes(key))return false;
  if(key){s.seen.push(key);s.seen=s.seen.slice(-20000);}
+ if(e.type==='message'&&e.message.trim()==='取消排队'){cancelQueue(s,e.uid,now);return true;}
  if(!manual&&s.current&&s.current.username===e.username&&e.username!=='Unknown viewer'){
   if(e.raw?.source!=='qq'||s.current.source==='qq'){s.current.uid=e.uid;s.current.source=e.raw?.source||'bilibili';}s.current.manual=false;if(e.guardType!==undefined)s.current.guardType=e.guardType;
   const duplicates=s.queue.filter(x=>x.uid===e.uid||x.username===e.username);
@@ -53,7 +66,7 @@ export function event(s,raw,now=Date.now(),manual=false) {
  }
  if(e.uid===s.current?.uid){if(e.guardType!==undefined)s.current.guardType=e.guardType;return true;}
  e={...e,manual};
- const existing=s.queue.find(x=>x.uid===e.uid);
+ const existing=s.queue.find(x=>x.uid===e.uid||(e.username!=='Unknown viewer'&&x.username===e.username));
  if(existing&&e.guardType!==undefined)existing.guardType=e.guardType;
  const member=guardRank(e.guardType===undefined?(existing||{}):e)>0;
  const gift=['gift','superchat'].includes(e.type)&&e.price>0;
@@ -65,7 +78,7 @@ export function event(s,raw,now=Date.now(),manual=false) {
   if(l?.active && ((e.type==='message'&&e.message.trim()===l.phrase)||(gift&&l.giftEnabled&&e.price>=l.minimum&&(!l.gift||e.giftName===l.gift)))) {
    if(!l.entries.some(x=>x.uid===e.uid))l.entries.push({uid:e.uid,username:e.username,guardType:e.guardType??existing?.guardType??0,manual:!!e.manual});
   }
-  if(s.settings.open && (((s.settings.freeQueue||member||manual)&&e.type==='message'&&e.message.trim()===s.settings.command)||(gift&&cents>0&&(member||cents>=Math.round(Math.max(0.1,s.settings.giftMinimum)*100)))))join(s,e,gift?cents:0,now);
+  if((gift&&cents>0&&existing)||(s.settings.open&&(((s.settings.freeQueue||member||manual)&&e.type==='message'&&e.message.trim()===s.settings.command)||(gift&&cents>0&&(member||cents>=Math.round(Math.max(0.1,s.settings.giftMinimum)*100))))))join(s,e,gift?cents:0,now);
  });
  reconcile(s,e,manual);
  return true;
@@ -148,4 +161,4 @@ export function action(s,a) {
  else if(a.type==='cancel'){if(s.lottery)s.lottery.active=false;}
  else throw Error('未知操作');
 }
-export function publicState(s){return {current:s.current||null,queue:[...sorted(s),...pendingQueue(s)],lottery:s.lottery?{...s.lottery,entries:undefined,count:s.lottery.entries.length}:null,announcement:s.announcement,settings:{overlayPageSeconds:s.settings.overlayPageSeconds,overlayScrollSpeed:s.settings.overlayScrollSpeed,overlayFontSize:s.settings.overlayFontSize,overlayShowAmount:s.settings.overlayShowAmount,overlayMode:s.settings.overlayMode,speechLanguage:s.settings.speechLanguage,command:s.settings.command,open:s.settings.open,freeQueue:s.settings.freeQueue,giftMinimum:Math.max(0.1,s.settings.giftMinimum)}};}
+export function publicState(s){const bindingEnabled=s.settings.qqEnabled&&s.settings.qqMode==='public'&&Boolean(s.settings.qqGroupOpenId);const boundUids=new Set(bindingEnabled?Object.entries(s.qqIdentities||{}).filter(([key])=>key.startsWith(s.settings.qqGroupOpenId+':')).map(([,value])=>value.uid):[]);const mark=item=>item?{...item,...(bindingEnabled?{qqBound:boundUids.has(item.uid)}:{}),...((s.redPackets||[]).some(c=>c.status==='pending'&&c.roomId===s.settings.roomId&&(c.uid===item.uid||c.username===item.username))?{hasPendingRedPacket:true}:{})}:null;return {current:mark(s.current),queue:[...sorted(s).map(mark),...pendingQueue(s).map(mark)],lottery:s.lottery?{...s.lottery,entries:undefined,count:s.lottery.entries.length}:null,announcement:s.announcement,settings:{overlayPageSeconds:s.settings.overlayPageSeconds,overlayScrollSpeed:s.settings.overlayScrollSpeed,overlayFontSize:s.settings.overlayFontSize,overlayShowAmount:s.settings.overlayShowAmount,overlayMode:s.settings.overlayMode,speechLanguage:s.settings.speechLanguage,command:s.settings.command,open:s.settings.open,freeQueue:s.settings.freeQueue,giftMinimum:Math.max(0.1,s.settings.giftMinimum)}};}
