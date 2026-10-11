@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = ROOT / 'public_bot/home-host.ps1'
 IMAGE = ROOT / 'public_bot/assets/bot-tray.png'
 LOG = ROOT / 'data/public-qq-host/tray-error.log'
+REMOTE_HOST = ROOT / 'data/public-qq-host/remote-host.json'
 FLAGS = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 MUTEX_NAME = 'Local\\ZZZPublicQQHostTray'
 
@@ -51,17 +52,22 @@ class HostTray:
 
     def update_menu(self):
         item = self.pystray.MenuItem
+        migrated = REMOTE_HOST.is_file()
         self.icon.menu = self.pystray.Menu(
-            item('公共机器人 · 本机临时托管', None, enabled=False),
+            item('公共机器人 · 已迁移云端' if migrated else '公共机器人 · 本机临时托管', None, enabled=False),
             item(self.status, None, enabled=False),
             self.pystray.Menu.SEPARATOR,
             item('刷新状态', lambda: self.work(self.refresh), default=True),
-            item('重启公共机器人服务', lambda: self.work(self.restart)),
+            item('重启公共机器人服务', lambda: self.work(self.restart), enabled=not migrated),
             item('退出并停止公共服务', lambda: self.work(self.quit)),
         )
         self.icon.title = '然神 QQ 公共机器人 · ' + self.status[:60]
 
     def refresh(self):
+        if REMOTE_HOST.is_file():
+            self.status = '已迁移云端 · 本机托管已停用'
+            self.update_menu()
+            return True
         lines = action('Status', timeout=20)
         states = dict(line.split(': ', 1) for line in lines.splitlines() if ': ' in line)
         healthy = all(states.get(name, '').startswith(('running', 'available'))
@@ -71,6 +77,9 @@ class HostTray:
         return healthy
 
     def start(self):
+        if REMOTE_HOST.is_file():
+            self.refresh()
+            return
         action('StartRelay')
         action('StartBot')
         self.refresh()

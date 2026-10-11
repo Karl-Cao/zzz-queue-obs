@@ -1,0 +1,7 @@
+[Unit]
+Description=Back up ZZZ public bot account and binding data
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/zzz-queue-obs/public_bot/deploy/backup.py
+UMask=0077

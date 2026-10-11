@@ -1,0 +1,29 @@
+--- a/ZZZeroUID/zzzerouid_user/__init__.py
++++ b/ZZZeroUID/zzzerouid_user/__init__.py
+@@ -20,6 +20,8 @@
+ async def bind_uid(bot: Bot, ev: Event):
+     qid = ev.user_id
+     uid = ev.text.strip()
++    if ev.command in {"绑定", "切换", "删除", "解绑"} and uid.lower().startswith("uid"):
++        uid = uid[3:].strip()
+     await bot.logger.info(f"zzz开始执行uid绑定, qid={qid}, uid={uid}")
+ 
+     if not uid:
+@@ -50,6 +52,8 @@
+ async def switch_uid(bot: Bot, ev: Event):
+     qid = ev.user_id
+     uid = ev.text.strip()
++    if ev.command in {"绑定", "切换", "删除", "解绑"} and uid.lower().startswith("uid"):
++        uid = uid[3:].strip()
+     if uid and not uid.isdigit():
+         return await bot.send("[绝区零] 你需要在切换命令后面加入你绝区零的UID或者直接输入切换命令！")
+ 
+@@ -86,6 +90,8 @@
+ async def delete_uid(bot: Bot, ev: Event):
+     qid = ev.user_id
+     uid = ev.text.strip()
++    if ev.command in {"绑定", "切换", "删除", "解绑"} and uid.lower().startswith("uid"):
++        uid = uid[3:].strip()
+     if not uid:
+         return await bot.send("[绝区零] 你需要在解绑命令后面加入你绝区零的UID！")
+     data = await GsBind.delete_uid(qid, ev.bot_id, uid, ZZZ_GAME_NAME)

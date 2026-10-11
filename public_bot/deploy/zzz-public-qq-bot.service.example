@@ -1,7 +1,7 @@
 [Unit]
 Description=ZZZ Queue shared official QQ bot
-After=network-online.target zzz-public-qq-relay.service
-Wants=network-online.target
+After=network-online.target zzz-public-qq-relay.service zzz-public-qq-core.service
+Wants=network-online.target zzz-public-qq-core.service
 Requires=zzz-public-qq-relay.service
 
 [Service]
@@ -10,6 +10,7 @@ User=zzzqueue
 Group=zzzqueue
 WorkingDirectory=/opt/zzz-queue-obs/public_bot
 EnvironmentFile=/etc/zzz-public-qq.env
+ExecStartPre=/usr/bin/python3 /opt/zzz-queue-obs/public_bot/deploy/wait-core.py
 ExecStart=/opt/zzz-queue-obs/.venv/bin/python /opt/zzz-queue-obs/public_bot/start_bot.py
 Restart=on-failure
 RestartSec=5

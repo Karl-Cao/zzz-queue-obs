@@ -161,7 +161,8 @@ class Tray:
                 host_config = ROOT / 'data/public-qq-host/tunnel.yml'
                 host_tray = ROOT / 'public_bot/host_tray.py'
                 pythonw = ROOT / '.venv/Scripts/pythonw.exe'
-                if host_config.is_file() and host_tray.is_file() and pythonw.is_file():
+                migrated = ROOT / 'data/public-qq-host/remote-host.json'
+                if not migrated.is_file() and host_config.is_file() and host_tray.is_file() and pythonw.is_file():
                     subprocess.Popen([str(pythonw), str(host_tray)], cwd=ROOT,
                                      creationflags=FLAGS, stdout=subprocess.DEVNULL,
                                      stderr=subprocess.DEVNULL)

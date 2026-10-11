@@ -1,0 +1,23 @@
+[Unit]
+Description=ZZZ public bot query core
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=zzzqueue
+Group=zzzqueue
+WorkingDirectory=/opt/gsuid-core
+EnvironmentFile=/etc/zzz-public-qq.env
+Environment=HOME=/var/lib/zzz-public-qq
+ExecStart=/opt/gsuid-core/.venv/bin/core --host 127.0.0.1 --port 8765
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/gsuid-core /var/lib/zzz-public-qq
+
+[Install]
+WantedBy=multi-user.target

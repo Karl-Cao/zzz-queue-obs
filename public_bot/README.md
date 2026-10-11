@@ -2,7 +2,7 @@
 
 这部分部署在持续在线的服务器上。所有主播共用**服务运营者的一套** QQ 官方机器人 AppID / AppSecret。主播不把自己的 AppSecret、米游社 Cookie 或 B 站登录信息发给机器人。主播电脑上的排队助手主动通过 HTTPS 长轮询连接中转服务；本地队列仍保存在主播电脑。
 
-公开入口为 **`https://qq.zenlesszonezero.fans`**。目前由项目作者自己的 Windows 电脑和 Cloudflare Tunnel 临时托管；已验证 `/health` 可访问，`/bot/*` 无法从公网访问。电脑关机、休眠或断网时公共机器人会离线。主域名保留给项目网站。
+公开入口为 **`https://qq.zenlesszonezero.fans`**。2026-10-01 已迁移至 Oracle San Jose 的 Ubuntu ARM64 服务器，Cloudflare Tunnel 也运行在服务器上。中转、QQ 机器人和绝区零查询由 systemd 管理，开机自动启动、故障自动重启；作者电脑关机不再影响公共机器人。已验证 `/health` 可访问，`/bot/*` 无法从公网访问。主域名保留给项目网站。维护与恢复步骤见 [Oracle 部署记录](deploy/ORACLE.md)。
 
 QQ 开放平台当前的「使用范围与人员」页面提供添加到群及消息列表的二维码，允许添加最多 50 个群，限制的是群数量而非单群人数。58 人的测试群 927643163 已成功加入，机器人日志收到了 `GROUP_ADD_ROBOT` 事件。主播 QQ 可以加入消息列表开发体验用户名单；之后仍需把该主播的本地队列与目标群单独绑定。两个群的真实排队与叫号隔离尚待第二位主播安装后实测。
 
@@ -16,11 +16,11 @@ QQ 开放平台当前的「使用范围与人员」页面提供添加到群及�
 - 使用 `PUBLIC_QQ_DATA_DIR` 指定持久数据目录，备份其中 `bindings.json`。单实例运行；本实现尚不支持多副本共享状态。
 - `/client/register` 在服务内按来源 IP 限制为每分钟 5 次；最多允许 1000 个客户端记录。这只是开发上限，正式开放前应按预计主播数调整容量并监测磁盘、连接数和失败率。
 
-## 当前 Windows 本机托管
+## 原 Windows 本机托管（保留作恢复方案）
 
-QQ 群指令面板合并为一张「全部指令」面板。所有 QQ 口令须以 `/` 开头，群内须真正 @机器人。ZZZeroUID 更新后，`/zzz角色图鉴 角色名`、`/zzz驱动盘 套装名`、`/zzz邦布 邦布名` 已有实现；面板容量上限为 20 条，未列入面板的口令仍可手输。`/zzz音擎攻略`、`/zzz突破材料` 暂无对应指令。红包申报使用 `/红包排队 金额`，金额仅在主播核对后计入，步骤见 [红包核对指南](../docs/QQ-RED-PACKET.zh-CN.md)。
+QQ 群指令面板使用一张面板，仅保留 15 条入口：排队、排队列表、取消排队、绑定B站、查看绑定、解绑B站、红包排队、帮助、zzz帮助、zzz绑定UID、ys帮助、lol帮助、ys扫码登录、zzz扫码登录、lol扫码登录。绝区零的具体查询从 `/zzz帮助` 查看后手输，无需全部列入面板。所有 QQ 口令须以 `/` 开头，群内须真正 @机器人。`/zzz角色图鉴 角色名`、`/zzz驱动盘 套装名`、`/zzz邦布 邦布名` 等已实现功能继续可用；`/zzz音擎攻略`、`/zzz突破材料` 暂无对应指令。红包申报使用 `/红包排队 金额`，金额仅在主播核对后计入，步骤见 [红包核对指南](../docs/QQ-RED-PACKET.zh-CN.md)。
 
-查询需要米游社凭据时，观众先在群里真正 @机器人发送 `/zzz绑定UID自己的绝区零UID`，再由**本人**发送 `/扫码登录`。机器人会 @发起者并在群里发送二维码；群里每个人都能看到二维码，切勿代扫或扫描别人的登录二维码。扫码完成后，服务器核对该米游社账号是否拥有发起者预先绑定的绝区零 UID；核对失败不会保存 Cookie。这个限制只防止错号入库，无法让群二维码变成私密内容。主播端更新不影响此服务端流程。
+查询需要米游社凭据时，观众先在群里真正 @机器人发送 `/zzz绑定UID自己的绝区零UID`，再由**本人**发送 `/zzz扫码登录`。机器人会 @发起者并在群里发送二维码；群里每个人都能看到二维码，切勿代扫或扫描别人的登录二维码。扫码完成后，服务器核对该米游社账号是否拥有发起者预先绑定的绝区零 UID；核对失败不会保存 Cookie。这个限制只防止错号入库，无法让群二维码变成私密内容。主播端更新不影响此服务端流程。
 QQ 官方接口的图片消息和 Markdown 提及使用不同消息类型，因此提醒与二维码分为两条群消息：第一条是真正可点击的 @，第二条回复原指令并显示发起者昵称、二维码和说明。第二条昵称用来区分多人同时登录的二维码；不会额外出现原样 `<@…>` 标签。群必须允许机器人主动发言。
 扫码完成、失败或二维码过期时，机器人也会以真正的 @ 标出发起者；图片形式的绑定结果紧随该提醒发送。
 早柚核心放在独立的运行目录，不随主播端代码提交。更新或重新安装核心后，先运行 `python public_bot/apply-core-qr-patch.py 核心目录`；本机 `home-host.ps1 -Action StartBot` 会自动核对并应用这份补丁。若上游核心代码变化导致补丁不匹配，脚本会停止而不会覆盖未知修改。
@@ -44,7 +44,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File public_bot/home-host.ps1
 
 先启动中转与隧道，再启动机器人，以免同一 QQ AppID 的旧本机机器人同时连接。公共服务现在独立于本机队列模式：即使主播端未运行，其他已绑定的主播仍可使用它。本机队列若已配置公共模式，主托盘启动时会确保独立公共机器人托盘已打开；也可单独双击上述脚本。重启电脑后需启动公共机器人托盘，或启动这台机器上的主托盘。`Stop` 只结束本脚本记录且进程路径、启动时间均匹配的进程。运行日志在 `data/public-qq-host/`。这台电脑暂时是所有群的共同故障点；以后迁移到真正服务器时无需此 Windows 托盘和 Cloudflare Tunnel。
 
-## 将来部署到 Linux 服务器（无需 Docker）
+## 部署到 Linux 服务器（无需 Docker）
 
 仓库中的 [`deploy/Caddyfile.example`](deploy/Caddyfile.example)、[中转 systemd 示例](deploy/zzz-public-qq-relay.service.example)、[机器人 systemd 示例](deploy/zzz-public-qq-bot.service.example) 和 [环境变量示例](deploy/env.example) 已按 `qq.zenlesszonezero.fans` 准备。路径以 `/opt/zzz-queue-obs`、持久数据目录以 `/var/lib/zzz-public-qq` 为例；若服务器布局不同，先修改示例中的路径。
 
@@ -54,7 +54,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File public_bot/home-host.ps1
 4. 将 Caddy 示例中的站点块加入服务器配置，先验证配置，再重载 Caddy。它只代理 `/client/*` 与 `/health`；检查 `https://qq.zenlesszonezero.fans/health` 返回 `ok`，而 `/bot/dm` 对外返回 404。`/bot/*` 仅供同机 QQ 适配器使用。
 5. 在 QQ 开放平台确认机器人有 C2C 私聊、群聊 @ 消息权限，并把这只机器人加入测试群。群管理员还需在群机器人权限中开启「允许机器人主动在群聊内发言」，否则控制台发起的群叫号会被 QQ 拒绝。最后在主播电脑控制台填写 `https://qq.zenlesszonezero.fans` 进行私聊绑定、群排队和群叫号联机测试。
 
-正式开放前还需给 `/client/register` 加反向代理限速、设日志与数据备份，并做不同主播的真实 QQ 群隔离及断线重连测试。当前域名由作者电脑的 Cloudflare Tunnel 提供，Linux 服务器配置只是部署模板。
+正式开放前还需给 `/client/register` 加反向代理限速，并做不同主播的真实 QQ 群隔离及断线重连测试。当前域名已由 Oracle 上的 Cloudflare Tunnel 提供；Linux 服务已启用自动启动、自动重启和每日数据备份。
 
 ## 主播绑定
 
@@ -71,3 +71,13 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File public_bot/home-host.ps1
 本地助手没有公网入站端口。离线或请求超时会回复“主播排队助手暂未连接/响应”，不会悄悄把旧消息留待以后加入队列。服务器仅保存绑定关系和临时投递事件；AppSecret、Cookie、队列数据不从主播电脑上传。
 
 身份保存于主播本地 `data/qq-identities.json`，升级保留完整 data 文件夹；重新连接后自动恢复服务器身份缓存。私聊 `/帮助`、`/查看群`、`/解绑群` 提供主播操作指引。
+
+
+原神统一使用 `/ys` 前缀，例如 `/ys查询 雷电将军`。服务器固定使用 GenshinUID 新版 HTML 面板（`OldPanle=false`）；公开面板数据仍来自 Enka。初次部署或迁移服务器时，停止核心后运行 `python public_bot/configure-genshin.py <核心data目录>`，随后启动核心。该改动仅在服务器，主播端无需更新或重新绑定。
+
+WeGame 群内授权：`/lol扫码登录 QQ号`。扩展 `qq/core_extensions/public_lol_bridge` 作为独立早柚插件放入 `gsuid_core/plugins/public_lol_bridge`，核心与机器人均须提供同一个 `PUBLIC_QQ_BOT_TOKEN`。核心授权接口只接受本机且鉴权通过的请求。14 个 LOL 命令处理器改为按发起者选择凭据；查询不再使用共享 Cookie 池。数据库仍使用原有 LOLUser 表。安装后完整扫码与查询需人工验收，不能把二维码创建成功视为登录成功。
+
+群内真正 @机器人发送 `/排队列表` 可查看当前位、前20名等待观众和金额（无需验证 B站身份即可查询）。此功能需更新主播端，详见 [排队列表说明](../docs/QQ-QUEUE-LIST.zh-CN.md)。排队与绑定的服务器回复使用真实 QQ 提及。
+
+
+PUBG 官方端游查询已加入公共机器人，入口 `/pubg帮助`；绑定、查询、排位、最近比赛和解除绑定由服务器独立处理，无需玩家 Cookie 或早柚核心插件。运营者配置 PUBG_API_KEY，持久绑定保存到 /var/lib/zzz-public-qq/pubg.sqlite3。见 [PUBG 使用与部署说明](../docs/PUBG-BOT.zh-CN.md)。主播端无需更新。

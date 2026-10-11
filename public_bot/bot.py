@@ -17,25 +17,46 @@ from nonebot.adapters.qq.event import C2CMessageCreateEvent, GroupAtMessageCreat
 from nonebot.adapters.qq.message import MessageSegment
 from nonebot.log import logger
 from nonebot.rule import Rule
-from commands import normalize_command, is_zzz_command, is_group_qr_login_command, unsupported_zzz_command
+from commands import normalize_command, is_game_command, is_group_qr_login_command, unsupported_zzz_command
+from qq_event_compat import install_qq_event_compat
+from wegame_login import WeGameGroupLogin
+from group_reply import send_group_reply
+from pubg import PubgService, is_pubg_command
 
+install_qq_event_compat()
 nonebot.init(command_start={"/"})
 nonebot.get_driver().register_adapter(Adapter)
 if os.environ.get("PUBLIC_QQ_ENABLE_ZZZ") == "1":
     nonebot.load_plugin("GenshinUID")
     import GenshinUID
 
-    async def zzz_group_command(event: GroupAtMessageCreateEvent) -> bool:
+    async def game_group_command(event: GroupAtMessageCreateEvent) -> bool:
         return isinstance(event, GroupAtMessageCreateEvent) and (
             is_group_qr_login_command(event.get_plaintext()) or
-            (is_zzz_command(event.get_plaintext()) and not unsupported_zzz_command(event.get_plaintext()))
+            (is_game_command(event.get_plaintext()) and
+             normalize_command(event.get_plaintext()).lower() != 'lol帮助' and
+             not unsupported_zzz_command(event.get_plaintext()))
         )
 
-    # Shared service never forwards private chats or non-ZZZ group messages to gsuid-core.
-    GenshinUID.get_message.rule &= Rule(zzz_group_command)
+    # Only slash-prefixed game commands in group @ events reach the shared core.
+    GenshinUID.get_message.rule &= Rule(game_group_command)
 
 RELAY_URL = os.environ.get("PUBLIC_QQ_LOCAL_RELAY", "http://127.0.0.1:8787").rstrip("/")
 BOT_TOKEN = os.environ["PUBLIC_QQ_BOT_TOKEN"]
+WEGAME_LOGIN = WeGameGroupLogin('http://127.0.0.1:8765/api/public_lol_bridge/credentials', BOT_TOKEN)
+PUBG = PubgService(key=os.environ.get('PUBG_API_KEY', ''))
+
+
+@Bot.on_called_api
+async def log_qq_delivery(bot, exception, api, data, result):
+    if api not in {'post_group_messages', 'post_group_files', 'post_group_upload'}:
+        return
+    target = str(data.get('group_openid', ''))
+    if exception is not None:
+        logger.warning('QQ delivery rejected: api={} group={} error={} code={}',
+                       api, target, type(exception).__name__, getattr(exception, 'code', None))
+    else:
+        logger.info('QQ delivery accepted: api={} group={}', api, target)
 
 
 @nonebot.get_app().post("/internal/game-qr")
@@ -156,6 +177,29 @@ async def handle_group(bot: Bot, event: GroupAtMessageCreateEvent) -> None:
     content = normalize_command(raw)
     if not content or len(content) > 80:
         return
+    if is_pubg_command(raw):
+        try:
+            reply = await asyncio.to_thread(PUBG.handle, str(event.author.member_openid), raw)
+        except Exception as error:
+            logger.warning('PUBG query failed: {}', type(error).__name__)
+            reply = 'PUBG 查询暂不可用，请稍后再试。'
+        await send_group_reply(bot, event, reply)
+        return
+    if content.lower().startswith('gs'):
+        await bot.send(event, '原神口令已改为 /ys，例如 /ys帮助、/ys刷新面板、/ys扫码登录。')
+        return
+    if content.lower().startswith(('lol扫码登录', 'lol扫码登陆')):
+        await WEGAME_LOGIN.run(bot, event, content)
+        return
+    if content.lower().startswith('lol添加ck'):
+        await bot.send(event, '请勿在群内发送Cookie。本人授权请发送 /lol扫码登录 你的QQ号（例如 /lol扫码登录 123456789），然后用该QQ扫码确认。')
+        return
+    if content in {'扫码登录', '扫码登陆'}:
+        await bot.send(event, '通用扫码登录已停用。请明确选择：原神 /ys扫码登录；绝区零 /zzz扫码登录。')
+        return
+    if content.lower() == 'lol帮助':
+        await bot.send(event, '英雄联盟查询\n/lol扫码登录 你的QQ号 → 本人扫码授权WeGame查询\n/lol绑定 玩家昵称#12345 → 找到唯一账号后直接绑定，无需复制UID\n/lol解除绑定 → 解除当前账号绑定\n/lol查询 → 基本信息\n/lol对局记录 → 对局记录\n请勿在群内提交Cookie或密码。授权仅供本人查询；二维码请勿代扫。')
+        return
     if is_group_qr_login_command(raw):
         # Send an independent proactive markdown mention. A normal reply would
         # reuse the incoming msgseq and QQ would deduplicate the core's QR image.
@@ -173,6 +217,9 @@ async def handle_group(bot: Bot, event: GroupAtMessageCreateEvent) -> None:
     if unsupported_zzz_command(raw):
         await bot.send(event, '当前 ZZZeroUID 版本尚未实现此图鉴功能。角色攻略可使用：/zzz角色攻略 安比；完整功能请发 /zzz帮助。')
         return
+    if normalize_command(raw).lower().startswith(('ys', 'lol')) and not is_game_command(raw):
+        await bot.send(event, '公共群机器人不接受此凭据操作，请勿在群内发送 Cookie 或 Stoken。查询口令请用 /ys帮助 或 /lol帮助。')
+        return
     member_openid = str(event.author.member_openid)
     try:
         result = await asyncio.to_thread(post, "/bot/group", {
@@ -184,10 +231,10 @@ async def handle_group(bot: Bot, event: GroupAtMessageCreateEvent) -> None:
             "text": raw,
         })
         if result.get("reply"):
-            await bot.send(event, result["reply"])
+            await send_group_reply(bot, event, result["reply"])
     except Exception:
         logger.exception("公共机器人群消息转发失败")
-        await bot.send(event, "排队服务暂不可用，请稍后再试。")
+        await send_group_reply(bot, event, "排队服务暂不可用，请稍后再试。")
 
 
 if __name__ == "__main__":

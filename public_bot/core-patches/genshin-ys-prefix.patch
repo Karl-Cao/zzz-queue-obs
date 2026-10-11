@@ -1,0 +1,9 @@
+--- a/gsuid_core/buildin_plugins/core_command/user_login/__init__.py
++++ b/gsuid_core/buildin_plugins/core_command/user_login/__init__.py
+@@ -163,5 +163,5 @@
+ @sv_core_user_qrcode_login.on_fullmatch(
+-    ("扫码登陆", "扫码登录", "gs扫码登录", "gs扫码登陆", "zzz扫码登录", "zzz扫码登陆"),
++    ("扫码登陆", "扫码登录", "ys扫码登录", "ys扫码登陆", "zzz扫码登录", "zzz扫码登陆"),
+     block=True,
+     prefix=False,
+ )

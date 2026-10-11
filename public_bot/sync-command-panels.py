@@ -1,5 +1,6 @@
 """Explicit operator action: sync owned QQ group command panels, keeping others intact."""
 import json
+import os
 from pathlib import Path
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError
@@ -7,28 +8,22 @@ import sys
 
 ROOT = Path(__file__).resolve().parent.parent
 PANELS = {
-    'ZZZQueue:排队与绑定': [
-        ('排队','加入主播队列'), ('取消排队','退出等待队列'), ('绑定B站','无需UID，再发短弹幕验证'),
+    'ZZZQueue:全部指令': [
+        ('排队','加入主播队列'), ('排队列表','查看当前位和等待顺序'), ('取消排队','退出等待队列'), ('绑定B站','无需UID，再发短弹幕验证'),
         ('查看绑定','查看已验证B站身份'), ('解绑B站','解除B站身份绑定'),
         ('红包排队','后加金额，需主播核对入账'),
         ('帮助','主播接入与观众口令指南'),
-    ],
-    'ZZZQueue:绝区零查询': [
-        ('zzz帮助','查看完整指令'), ('zzz绑定UID','后加绝区零游戏UID'),
-        ('zzz查询','查询账号信息，需要CK'), ('zzz刷新面板','刷新公开展示角色'),
-        ('zzz练度统计','查看角色练度统计'), ('zzz角色面板','后加角色名'),
-        ('zzz深渊','查询危局强袭'), ('zzz兑换码','查询兑换码'),
-        ('zzz签到','米游社签到，需要CK'), ('zzz抽卡记录','查看抽卡记录'),
-        ('扫码登录','群内扫码，仅本人UID匹配才入库'),
-    ],
-    'ZZZQueue:绝区零图鉴': [
-        ('zzz角色攻略','后加角色名'), ('zzz角色图鉴','后加角色名'),
+        ('zzz帮助','查看绝区零全部功能口令'), ('zzz绑定UID','后加绝区零游戏UID'),
+        ('ys帮助','查看原神功能口令'), ('lol帮助','查看英雄联盟功能与使用条件'),
+        ('ys扫码登录','先绑定原神UID，再本人扫码授权'),
+        ('lol扫码登录','后加QQ号，本人扫码授权查询'),
+        ('zzz扫码登录','绝区零本人扫码授权'),
+        ('pubg帮助','查看PUBG端游查询用法'),
     ],
 }
 
-# Keep all commands in one panel so a client's selected panel includes everything.
-LEGACY_REMARKS = set(PANELS)
-PANELS = {'ZZZQueue:全部指令': [entry for entries in PANELS.values() for entry in entries]}
+# Reuse the existing panel identity; expose entry points rather than every query.
+LEGACY_REMARKS = {'ZZZQueue:排队与绑定', 'ZZZQueue:绝区零查询', 'ZZZQueue:绝区零图鉴'}
 
 def equivalent_item(actual, expected):
     # QQ accepts slash-prefixed commands but returns their canonical bare names.
@@ -57,7 +52,13 @@ def main():
             assert sum(1 if ord(c)<128 else 2 for c in desc)<=30
     if '--validate' in sys.argv:
         print('Command panels validated'); return
-    credentials=json.loads((ROOT/'data/qq-runtime/official-bot.json').read_text(encoding='utf-8-sig'))
+    app_id=os.environ.get('PUBLIC_QQ_APP_ID','').strip()
+    secret=os.environ.get('PUBLIC_QQ_APP_SECRET','').strip()
+    if app_id or secret:
+        if not app_id or not secret: raise RuntimeError('Both public QQ credential fields are required')
+        credentials={'appId':app_id,'secret':secret}
+    else:
+        credentials=json.loads((ROOT/'data/qq-runtime/official-bot.json').read_text(encoding='utf-8-sig'))
     token=request('POST','https://bots.qq.com/app/getAppAccessToken',{'appId':credentials['appId'],'clientSecret':credentials['secret']})['access_token']
     base='https://api.bot.qq.com'
     records=[]; cursor=''
@@ -67,7 +68,7 @@ def main():
         records.extend(page.get('records',[]))
         cursor=page.get('next_cursor','')
         if page.get('is_end') or not cursor: break
-    backup=ROOT/'data/public-qq-host/command-panels-backup.json'
+    backup=Path(os.environ.get('PUBLIC_QQ_PANEL_BACKUP',str(ROOT/'data/public-qq-host/command-panels-backup.json')))
     backup.parent.mkdir(parents=True,exist_ok=True)
     backup.write_text(json.dumps(records,ensure_ascii=False,indent=2),encoding='utf-8')
     for remark,entries in PANELS.items():

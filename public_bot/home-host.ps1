@@ -13,6 +13,10 @@ $nonebotRoot=Join-Path $root 'data\qq-runtime\nonebot-app'
 $cloudflared=Join-Path $root 'runtime\cloudflared.exe'
 $tunnelConfig=Join-Path $folder 'tunnel.yml'
 New-Item -ItemType Directory -Force -Path $folder,$relayDir | Out-Null
+if ((Test-Path -LiteralPath (Join-Path $folder 'remote-host.json')) -and $Action -in @('StartRelay','StartBot','Status')) {
+    Write-Output 'hosting: remote (local public services disabled)'
+    return
+}
 
 function Read-Records {
     if (Test-Path -LiteralPath $recordPath) {

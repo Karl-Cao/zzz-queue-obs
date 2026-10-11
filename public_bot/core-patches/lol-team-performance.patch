@@ -1,0 +1,43 @@
+--- a/LOLegendsUID/lol_info/draw_lol_battle_list.py
++++ b/LOLegendsUID/lol_info/draw_lol_battle_list.py
+@@ -6,6 +6,7 @@
+ from gsuid_core.utils.image.convert import convert_img
+ from gsuid_core.utils.fonts.fonts import core_font as cf
+ 
++from plugins.public_lol_bridge.team_performance import draw_team_performance_panel
+ from ..utils.lol_api import wg_api
+ from ..utils.error_reply import get_error
+ from .draw_lol_info_pic import (
+@@ -55,7 +56,7 @@
+     else:
+         h = len(battle_list_data) * 250 + 500 + 40
+ 
+-    img = Image.new('RGBA', (900, h), rgb_value)
++    img = Image.new('RGBA', (900, h + 55), rgb_value)
+     img.paste(bg, (0, 0), bg)
+     img.paste(title, (0, 0), title)
+ 
+@@ -85,14 +86,8 @@
+             continue
+ 
+         for i, team in enumerate(detail['team_details']):
+-            # 官方已删除该参数
+-            # team_elo = team['teamElo']
+-            team_elo = '已隐藏'
+-            team_gold = team['totalGoldEarned']
+-            team_word = Image.open(TEXT_PATH / "team_word.png")
+-            team_draw = ImageDraw.Draw(team_word)
+-            team_draw.text((98, 20), f'{team_elo}', 'white', cf(25), 'lm')
+-            team_draw.text((106, 55), f'{team_gold}', 'white', cf(25), 'lm')
++            panel_size = Image.open(TEXT_PATH / "team_word.png").size
++            team_word = draw_team_performance_panel(panel_size, detail, team, cf)
+             battle_bg.paste(team_word, (626, 68 + 88 * i), team_word)
+ 
+         team_a_num = -1
+@@ -151,4 +146,6 @@
+     footer = Image.open(TEXT_PATH / 'footer.png')
+     img.paste(footer, (0, h - 55), footer)
+ 
++    note = ImageDraw.Draw(img)
++    note.text((450, h + 25), 'Akari参考单场评分（非Elo）· 缺项不计分 · 仅比较同场两队', S, cf(19), 'mm')
+     return await convert_img(img)

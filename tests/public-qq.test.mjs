@@ -13,6 +13,23 @@ import { PublicQQClient, validateRelayUrl } from '../server/public-qq.mjs';
 import {extractLoginQr} from '../server/game-qr.mjs';
 
 const botSecret = 'a'.repeat(48);
+
+test('game queries bypass streamer queue routing even in an unbound group', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'zzz-games-relay-'));
+  const relay = new PublicRelay(join(directory, 'relay'));
+  const {server, url} = await createRelayServer({relay, botSecret, listenPort: 0});
+  try {
+    for (const text of ['/zzz帮助', '/ys帮助', '/ys绑定UID 100000000', '/lol搜索 Wuyi', '/lol查询']) {
+      const response = await fetch(`${url}/bot/group`, {method: 'POST', headers: {Authorization: `Bearer ${botSecret}`, 'Content-Type': 'application/json'}, body: JSON.stringify({groupOpenId: 'unbound-game-group', memberOpenId: 'game-member', name: 'Game test', messageId: text, text})});
+      assert.equal(response.status, 200);
+      assert.deepEqual(await response.json(), {reply: null});
+    }
+    assert.equal(relay.clients.size, 0);
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+    await rm(directory, {recursive: true, force: true});
+  }
+});
 const freePort = async () => { const server = httpServer(); server.listen(0, '127.0.0.1'); await once(server, 'listening'); const port = server.address().port; await new Promise(resolve => server.close(resolve)); return port; };
 const waitFor = async predicate => {
   for (let i = 0; i < 240; i++) { if (await predicate()) return; await new Promise(resolve => setTimeout(resolve, 25)); }

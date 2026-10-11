@@ -25,6 +25,8 @@ test('QQ B current -> selected C -> A and B pending 60 -> B live gift 0.10 -> in
   const pair=await post('/api/public-qq/pair',{url:hosted.url});await relay.bindOwner('owner-test',pair.code);await relay.requestGroupPrivate('owner-test',relay.issueGroupAccess('group-test','168426621'),pair.code);await post('/api/public-qq/confirm',{groupOpenId:'group-test'});
   await wait(()=>[...relay.clients.values()].some(c=>c.lastPollAt&&c.members?.filter(m=>m.bilibiliUid).length===3));
   assert.match((await bot('B','/排队')).reply,/第 1 位/);let s=await record('B joins through QQ');const joinedAt=s.queue[0].joinedAt;
+  assert.match((await bot('Unbound','/排队列表')).reply,/当前：暂无[\s\S]*1\. B · ¥0.00/);
+  assert.match((await bot('Unbound','/排队')).reply,/请先 @机器人 \/绑定B站/);
   await post('/api/action',{type:'advance',currentUid:null,nextUid:'222'});await record('B becomes current');
   await bot('C','/排队');await post('/api/action',{type:'select-call',uid:'333',currentUid:'222'});s=await record('Call C; return B to waiting queue');assert.equal(s.current.username,'C');assert.equal(s.queue[0].username,'B');
   assert.match((await bot('A','/红包排队 60')).reply,/等待主播核对/);await record('A reports 60; pending');
@@ -36,6 +38,7 @@ test('QQ B current -> selected C -> A and B pending 60 -> B live gift 0.10 -> in
   let saved=JSON.parse(await readFile(join(dir,'state.json'),'utf8'));const aId=saved.redPackets.find(x=>x.uid==='111').id,bId=saved.redPackets.find(x=>x.uid==='222').id;
   await post('/api/action',{type:'red-confirm',id:aId});s=await record('Approve A only');assert.equal(s.queue.find(x=>x.uid==='111').cents,6000);assert.equal(s.queue.find(x=>x.uid==='222').hasPendingRedPacket,true);assert.equal(s.queue.find(x=>x.uid==='222').cents,10,JSON.stringify({timeline,queue:s.queue,claims:JSON.parse(await readFile(join(dir,'state.json'),'utf8')).redPackets}));
   await post('/api/action',{type:'red-confirm',id:bId});s=await record('Approve B');const final=s.queue.find(x=>x.uid==='222');assert.equal(final.cents,6010);assert.equal(final.hasPendingRedPacket,undefined);assert.equal(final.joinedAt,joinedAt);assert.equal(s.current.username,'C');assert.equal(s.queue[0].username,'B');assert.match(html(final),/¥60.10/);
+  assert.match((await bot('Unbound','/排队列表')).reply,/当前：C[\s\S]*1\. B · ¥60.10[\s\S]*2\. A · ¥60.00/);
   await writeFile('data/returned-viewer-workflow-result.json',JSON.stringify({isolated:true,simulatedQQ:true,simulatedBridgeGift:true,timeline},null,2));
  }finally{if(child&&child.exitCode===null){child.kill();await once(child,'exit');}liveSocket?.destroy();await new Promise(r=>live.close(r));relay.shutdown();hosted.server.closeAllConnections();await new Promise(r=>hosted.server.close(r));await rm(dir,{recursive:true,force:true});}
 });

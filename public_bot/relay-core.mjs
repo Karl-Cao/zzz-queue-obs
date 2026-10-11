@@ -307,14 +307,14 @@ export class PublicRelay {
 
   async queue(groupOpenId, memberOpenId, name, messageId, message = '排队') {
     const client = [...this.clients.values()].find(item => item.groupOpenId === groupOpenId);
-    if (!client) return ['排队','取消排队'].includes(message)||/^红包排队(?:\s|$)/.test(message) ? { error: '此群尚未绑定主播排队助手' } : { ignored: true };
+    if (!client) return ['排队','取消排队','排队列表'].includes(message)||/^红包排队(?:\s|$)/.test(message) ? { error: '此群尚未绑定主播排队助手' } : { ignored: true };
     if (!client.lastPollAt || this.now() - client.lastPollAt >= 30_000) return { error: '主播排队助手暂未连接' };
     if (!idPattern.test(memberOpenId || '') || !messageId || String(messageId).length > 512) return { error: 'QQ 消息标识无效' };
     const id = hash(`${groupOpenId}:${messageId}`);
     if (this.pending.has(id)) return { error: '消息正在处理，请稍后查看名单' };
     const boundMember = client.members?.find(item => item.openid === memberOpenId);
     const identityCommand=['查看绑定','解绑B站'].includes(message)||/^绑定B站(?:\s+[1-9]\d{0,19})?$/.test(message);
-    if(!identityCommand&&!boundMember?.bilibiliUid)return {error:'请先 @机器人 /绑定B站，完成直播间短码验证并收到成功通知后，再使用群内排队。'};
+    if(!identityCommand&&message!=='排队列表'&&!boundMember?.bilibiliUid)return {error:'请先 @机器人 /绑定B站，完成直播间短码验证并收到成功通知后，再使用群内排队。'};
     const boundName = boundMember?.bilibiliUid ? boundMember.bilibiliName : undefined;
     const event = { id, groupOpenId, memberOpenId,qqName:String(name||'').slice(0,80), name: boundName || String(name || '').slice(0, 80) || `QQ用户${memberOpenId.slice(0, 6)}`, message: String(message || '').slice(0, 80), expiresAt: this.now() + this.deliveryTimeoutMs };
     return new Promise(resolve => {

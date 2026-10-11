@@ -24,6 +24,17 @@ export async function createRelayServer({ relay = new PublicRelay(directory), bo
     const send = (status, data) => { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' }); res.end(JSON.stringify(data)); };
     try {
       const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+      // Temporary operator test: the loopback service validates an expiring token.
+      if (/^\/client\/verification-test\/[A-Za-z0-9_-]{40,64}(\/(challenge|submit))?$/.test(url.pathname) && ['GET','POST'].includes(req.method)) {
+        const chunks=[];let length=0;
+        for await (const chunk of req) {length+=chunk.length;if(length>8192){send(413,{error:'Too large'});return;}chunks.push(chunk);}
+        try {
+          const result=await fetch('http://127.0.0.1:8789'+url.pathname,{method:req.method,headers:{'Content-Type':'application/json','Origin':req.headers.origin||''},body:req.method==='POST'?Buffer.concat(chunks):undefined,signal:AbortSignal.timeout(60000)});
+          res.writeHead(result.status,{'Content-Type':result.headers.get('content-type')||'application/json','Cache-Control':'no-store','Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff'});
+          res.end(await result.text());
+        } catch {send(503,{error:'Test unavailable or expired'});}
+        return;
+      }
       if (req.method === 'GET' && url.pathname === '/health') { send(200, { ok: true, app: 'zzz-public-qq-relay' }); return; }
       if (req.method !== 'POST') { send(404, { error: 'Not found' }); return; }
       if (!req.headers['content-type']?.startsWith('application/json')) { send(415, { error: 'JSON required' }); return; }
@@ -62,8 +73,9 @@ export async function createRelayServer({ relay = new PublicRelay(directory), bo
           if (/^绑定B站(?:\s|$)/.test(content) || ['查看绑定', '解绑B站'].includes(content)) {
             send(200, { reply: '请发送：@机器人 /绑定B站（无需填写UID或昵称），再按提示到主播直播间验证。' }); return;
           }
-          if (/^zzz/i.test(content)) { send(200, { reply: null }); return; }
+          if (/^(zzz|ys|gs|lol)/i.test(content)) { send(200, { reply: null }); return; }
           const result = await relay.queue(groupOpenId, String(input.memberOpenId || ''), input.name, String(input.messageId || ''), content);
+          if(content==='排队列表'){send(200,{reply:result.error||result.reply||'请主播更新排队助手后使用 /排队列表。'});return;}
           const reply = /^红包排队(?:\s|$)/.test(content)?result.error||result.reply||'主播排队助手尚未支持红包核对，请更新后使用。':result.ignored ? null : result.error || result.reply || (result.current ? '你正在当前位。' : result.queued ? `已在排队列表，第 ${result.position} 位。` : '未入队；请检查主播是否开放排队及免费排队。');
           send(200, { reply }); return;
         }

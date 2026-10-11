@@ -1,0 +1,17 @@
+[Unit]
+Description=Cloudflare Tunnel for ZZZ public bot
+After=network-online.target zzz-public-qq-relay.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/cloudflared --no-autoupdate tunnel --config /etc/cloudflared/zzz-public-qq.yml run
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

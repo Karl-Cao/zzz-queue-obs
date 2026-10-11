@@ -1,0 +1,21 @@
+--- a/LOLegendsUID/lol_info/draw_lol_battle_list.py
++++ b/LOLegendsUID/lol_info/draw_lol_battle_list.py
+@@ -6,6 +6,7 @@
+ from gsuid_core.utils.image.convert import convert_img
+ from gsuid_core.utils.fonts.fonts import core_font as cf
+ 
++from plugins.public_lol_bridge.team_rating import format_team_elo
+ from ..utils.lol_api import wg_api
+ from ..utils.error_reply import get_error
+ from .draw_lol_info_pic import (
+@@ -85,9 +86,7 @@
+             continue
+ 
+         for i, team in enumerate(detail['team_details']):
+-            # 官方已删除该参数
+-            # team_elo = team['teamElo']
+-            team_elo = '已隐藏'
++            team_elo = format_team_elo(team)
+             team_gold = team['totalGoldEarned']
+             team_word = Image.open(TEXT_PATH / "team_word.png")
+             team_draw = ImageDraw.Draw(team_word)
